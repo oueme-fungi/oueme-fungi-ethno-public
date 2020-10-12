@@ -1,0 +1,8 @@
+!1_data.pdf
+!2_analysis.pdf
+!1_data.html
+!2_analysis.html
+*.rds
+*.csv
+*.xlsx
+!S*_Table.xlsx

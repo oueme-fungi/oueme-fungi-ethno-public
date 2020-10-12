@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="anonymous for submission" />
+
+
+<title>Data wrangling for ‘Comparison of wild mushroom use by ethnic groups surrounding the Upper Ouémé Reserve Forest in Benin, West Africa.’</title>
+
+<script src="1_data_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="1_data_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="1_data_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="1_data_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="1_data_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="1_data_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="1_data_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="1_data_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="1_data_files/navigation-1.1/tabsets.js"></script>
+<script src="1_data_files/navigation-1.1/codefolding.js"></script>
+<link href="1_data_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="1_data_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+<div class="btn-group pull-right">
+<button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Data wrangling for ‘Comparison of wild mushroom use by ethnic groups surrounding the Upper Ouémé Reserve Forest in Benin, West Africa.’</h1>
+<h4 class="author">anonymous for submission</h4>
+
+</div>
+
+
+<div id="setup" class="section level1 unnumbered">
+<h1>Setup</h1>
+<pre class="r"><code>library(magrittr) # for %&gt;%,  %T&gt;%, %&lt;&gt;%
+library(rlang) # for %|%, %||%
+library(knitr)
+library(ggplot2)</code></pre>
+</div>
+<div id="load-data-files" class="section level1">
+<h1><span class="header-section-number">1</span> Load data files</h1>
+<p>The interview file is a compilation of all data collected in interviews. Interviewee names have been removed for the publicly available version.</p>
+<pre class="r"><code>data.dir &lt;- here::here(&quot;data&quot;)
+interview.file &lt;- file.path(
+  data.dir,
+  &quot;interviews_anon.xlsx&quot;
+)
+
+biodata &lt;- readxl::read_excel(interview.file, sheet = &quot;Biodata&quot;) %&gt;%
+  magrittr::set_names(make.names(names(.)))
+interviews &lt;- readxl::read_excel(interview.file, sheet = &quot;Interview&quot;) %&gt;%
+  magrittr::set_names(make.names(names(.)))
+focusgroups &lt;- readxl::read_excel(interview.file, sheet = &quot;Focus group&quot;) %&gt;%
+  magrittr::set_names(make.names(names(.)))
+specimen_id &lt;- readxl::read_excel(
+  interview.file,
+  sheet = &quot;Specimen ID&quot;,
+  col_types = &quot;text&quot;) %&gt;%
+  magrittr::set_names(make.names(names(.)))</code></pre>
+<p>The species key handles synonymy and defines the formal citation and the abbreviation for each species.</p>
+<pre class="r"><code>species.file &lt;- file.path(data.dir, &quot;species.csv&quot;)
+specieskey &lt;- readr::read_csv(species.file, col_types = &quot;cccc&quot;)</code></pre>
+<p>The symbology files give abbreviations and aesthetics to use when plotting the different ethnic groups and villages.</p>
+<pre class="r"><code>groups.file &lt;- here::here(&quot;data&quot;, &quot;groups.csv&quot;)
+groups &lt;- readr::read_csv(groups.file, col_types = &quot;cccc&quot;)
+villages.file &lt;- here::here(&quot;data&quot;, &quot;villages.csv&quot;)
+villages &lt;- readr::read_csv(villages.file, col_types = &quot;ccccii&quot;)
+villagegroups.file &lt;- here::here(&quot;data&quot;, &quot;villagegroups.csv&quot;)
+villagegroups &lt;-
+  readr::read_csv(villagegroups.file, col_types = &quot;cc&quot;) %&gt;%
+  dplyr::left_join(groups, by = c(&quot;Group&quot;)) %&gt;%
+  dplyr::left_join(villages, by = c(&quot;Village&quot;), suffix = c(&quot;Group&quot;, &quot;Village&quot;)) %&gt;%
+  dplyr::mutate(VillageGroup = paste0(Village, Group))</code></pre>
+<p>The installation history file gives the length of time each group has been present in each village.</p>
+<pre class="r"><code>installation_file &lt;- file.path(data.dir, &quot;installation.csv&quot;)
+installation &lt;- readr::read_csv(installation_file, col_types = &quot;cci&quot;)</code></pre>
+<pre class="r"><code>specimens &lt;- 
+    readxl::read_xls(
+      here::here(&quot;data&quot;, &quot;specimens.xls&quot;),
+      col_types = c(
+        &quot;text&quot;,
+        &quot;date&quot;,
+        rep(&quot;text&quot;, 5),
+        rep(&quot;logical&quot;, 3),
+        rep(&quot;numeric&quot;, 10)
+        )
+    )</code></pre>
+<p>Load the sequences.</p>
+<pre class="r"><code>seqs &lt;- 
+  here::here(&quot;data&quot;, &quot;fullseqs.fasta&quot;) %&gt;%
+  seqinr::read.fasta()
+seqs &lt;- tibble::tibble(
+  specimen_ID = seqinr::getName(seqs),
+  seq = unlist(seqinr::getSequence(seqs, as.string = TRUE)),
+  Species.photo = stringr::str_extract(specimen_ID, &quot;\\d+&quot;)
+)</code></pre>
+</div>
+<div id="data-checks" class="section level1">
+<h1><span class="header-section-number">2</span> Data checks</h1>
+<div id="species-list" class="section level2">
+<h2><span class="header-section-number">2.1</span> Species list</h2>
+<p>List “extra” names from the species key. There should not be any.</p>
+<pre class="r"><code>dplyr::anti_join(specieskey, interviews, by = c(&quot;original&quot; = &quot;Scientific.name&quot;)) %&gt;%
+  dplyr::anti_join(focusgroups, by = c(&quot;original&quot; = &quot;Scientific.name&quot;))</code></pre>
+<pre><code>## # A tibble: 0 x 4
+## # … with 4 variables: original &lt;chr&gt;, canonicalName &lt;chr&gt;, Abbrev &lt;chr&gt;,
+## #   scientificName &lt;chr&gt;</code></pre>
+</div>
+<div id="focus-group-data" class="section level2">
+<h2><span class="header-section-number">2.2</span> Focus group data</h2>
+<p>Ensure all species present in the focus group data are also present in the species key.</p>
+<pre class="r"><code>focusgroups %&gt;%
+  dplyr::anti_join(specieskey, by = c(&quot;Scientific.name&quot; = &quot;original&quot;)) %&gt;%
+  dplyr::pull(Scientific.name) %&gt;%
+  unique() %&gt;%
+  sort() %T&gt;%
+  {stopifnot(length(.) == 0)}</code></pre>
+<pre><code>## character(0)</code></pre>
+<p>Replace the names in the focus groups data with the canonical names from the species list.</p>
+<pre class="r"><code>focusgroups %&lt;&gt;%
+  dplyr::left_join(specieskey, by = c(&quot;Scientific.name&quot; = &quot;original&quot;)) %&gt;%
+  dplyr::select(-Scientific.name)</code></pre>
+<div id="village" class="section level3">
+<h3><span class="header-section-number">2.2.1</span> Village</h3>
+<p>Unique values for <code>Village</code>:</p>
+<pre class="r"><code>unique(focusgroups$Village)</code></pre>
+<pre><code>## [1] &quot;Angaradebou&quot; &quot;Bio sika&quot;    &quot;Gando&quot;       &quot;Sonnoumon&quot;</code></pre>
+<p>These are consistent, but Bio <em>S</em>ika should be capitalized. Make them factors, using abbreviations.</p>
+<pre class="r"><code>focusgroups$Village %&lt;&gt;%
+  stringr::str_to_title() %&gt;%
+  factor(levels = villages$Village.Long, labels = villages$Village)</code></pre>
+</div>
+<div id="ethnic-group" class="section level3">
+<h3><span class="header-section-number">2.2.2</span> Ethnic group</h3>
+<p>Unique values for <code>Ethnic.group</code>:</p>
+<pre class="r"><code>unique(focusgroups$Ethnic.group)</code></pre>
+<pre><code>## [1] &quot;Yom&quot;    &quot;Lokpa&quot;  &quot;Gando&quot;  &quot;Bariba&quot;</code></pre>
+<p>These are consistent. Make them factors, using abbreviations.</p>
+<pre class="r"><code>focusgroups$Ethnic.group %&lt;&gt;%
+  factor(levels = groups$Group.Long, labels = groups$Group)</code></pre>
+</div>
+</div>
+<div id="interview-data" class="section level2">
+<h2><span class="header-section-number">2.3</span> Interview data</h2>
+<p>Ensure all species present in the interviews are also present in the species key.</p>
+<pre class="r"><code>interviews %&gt;% 
+  dplyr::select(Scientific.name) %&gt;%
+  unique() %&gt;%
+  dplyr::filter(!Scientific.name %in% specieskey$original) %&gt;%
+  {stopifnot(nrow(.) == 0)}</code></pre>
+<p>Add canonical names for each species.</p>
+<pre class="r"><code>interviews %&lt;&gt;%
+  dplyr::left_join(specieskey, by = c(&quot;Scientific.name&quot; = &quot;original&quot;)) %&gt;%
+  dplyr::select(-Scientific.name)</code></pre>
+<div id="recognize" class="section level3">
+<h3><span class="header-section-number">2.3.1</span> Recognize</h3>
+<p>What are the values for <code>Recognize</code>?</p>
+<pre class="r"><code>unique(interviews$Recognize)</code></pre>
+<pre><code>## [1] &quot;y&quot; &quot;n&quot; NA</code></pre>
+<p>Assume that missing data (<code>NA</code>) means that they do not recognize it.</p>
+<pre class="r"><code>interviews %&lt;&gt;%
+  dplyr::mutate(Recognize = (Recognize == &quot;y&quot;) %|% FALSE)</code></pre>
+</div>
+<div id="preference" class="section level3">
+<h3><span class="header-section-number">2.3.2</span> Preference</h3>
+<p>Unique values for <code>Preference</code>:</p>
+<pre class="r"><code>unique(interviews$Preference)</code></pre>
+<pre><code>## [1] &quot;4&quot;   &quot;3&quot;   &quot;2&quot;   &quot;1&quot;   &quot;n/a&quot; &quot;0&quot;   &quot;?&quot;   NA</code></pre>
+<p>Force them to be integers; this will map <code>&quot;n/a&quot;</code> and <code>&quot;?&quot;</code> to <code>NA</code>.</p>
+<pre class="r"><code>interviews %&lt;&gt;% dplyr::mutate(Preference = as.integer(Preference))</code></pre>
+<pre><code>## Warning in mask$eval_all_mutate(dots[[i]]): NAs introduced by coercion</code></pre>
+<p>Now the values are:</p>
+<pre class="r"><code>unique(interviews$Preference)</code></pre>
+<pre><code>## [1]  4  3  2  1 NA  0</code></pre>
+</div>
+</div>
+<div id="biographical-data" class="section level2">
+<h2><span class="header-section-number">2.4</span> Biographical data</h2>
+<div id="village-1" class="section level3">
+<h3><span class="header-section-number">2.4.1</span> Village</h3>
+<p>Unique values for <code>Village</code>:</p>
+<pre class="r"><code>unique(biodata$Village)</code></pre>
+<pre><code>## [1] &quot;Gando&quot;       &quot;Sonnoumon&quot;   &quot;Faba&quot;        &quot;Bio Sika&quot;    &quot;Angaradebou&quot;</code></pre>
+<pre class="r"><code>unique(installation$Village)</code></pre>
+<pre><code>## [1] &quot;Angaradebou&quot; &quot;Bio Sika&quot;    &quot;Faba&quot;        &quot;Gando&quot;       &quot;Sonoummon&quot;</code></pre>
+<p>These are consistent. Make them factors, using abbreviations.</p>
+<pre class="r"><code>biodata$Village %&lt;&gt;%
+  factor(levels = villages$Village.Long, labels = villages$Village)
+installation$Village %&lt;&gt;%
+  factor(levels = villages$Village.Long, labels = villages$Village)</code></pre>
+</div>
+<div id="ethnic-group-1" class="section level3">
+<h3><span class="header-section-number">2.4.2</span> Ethnic group</h3>
+<p>Unique values for <code>Ethnic.group</code>:</p>
+<pre class="r"><code>unique(biodata$Ethnic.group)</code></pre>
+<pre><code>## [1] &quot;Gando&quot;                 &quot;Bariba&quot;                &quot;Nagot&quot;                
+## [4] &quot;Peuhl/Fulfulde/Fulani&quot; &quot;Lokpa&quot;                 &quot;Yom&quot;</code></pre>
+<pre class="r"><code>unique(installation$Ethnic.group)</code></pre>
+<pre><code>## [1] &quot;Yom&quot;    &quot;Lokpa&quot;  &quot;Bariba&quot; &quot;Gando&quot;</code></pre>
+<p>These are consistent. Make them factors, using abbreviations.</p>
+<pre class="r"><code>biodata$Ethnic.group %&lt;&gt;%
+  factor(levels = groups$Group.Long, labels = groups$Group)
+installation$Ethnic.group %&lt;&gt;%
+  factor(levels = groups$Group.Long, labels = groups$Group)</code></pre>
+<p>Now join the installation history data to the main data.</p>
+<pre class="r"><code>biodata %&lt;&gt;%
+  dplyr::left_join(installation, by = c(&quot;Village&quot;, &quot;Ethnic.group&quot;))</code></pre>
+<p>Add a factor which uniquely identifies both Village and Ethnic group for each interviewee.</p>
+<pre class="r"><code>biodata %&lt;&gt;% 
+  dplyr::mutate(
+    VillageGroup = paste0(Village, Ethnic.group),
+    VillageGroup = factor(VillageGroup,
+                          levels = villagegroups$VillageGroup)
+  )</code></pre>
+</div>
+<div id="age" class="section level3">
+<h3><span class="header-section-number">2.4.3</span> Age</h3>
+<p>Unique values for <code>Age</code></p>
+<pre class="r"><code>sort(table(biodata$Age))</code></pre>
+<pre><code>## 
+##  17  18  22  24  25  27  32  33  37  38  39  43  52  55  59 &gt;50  50  60 &gt;70  30 
+##   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   2   2   3   4   4 
+##  45  35  40 &gt;60 
+##   4   8   8  20</code></pre>
+<p>There are values of “<span class="math inline">\(&gt;50\)</span>”, “<span class="math inline">\(&gt;60\)</span>”, and “<span class="math inline">\(&gt;70\)</span>”; in particular “<span class="math inline">\(&gt;60\)</span>” is by far the most common value. All other values which are represented more than once are multiples of 5. This suggests that respondents frequently round their ages.</p>
+<p>Previous works have divided respondants into age categories “young” &lt;18, “adult” 18-35, and “old” 35+. We have only a very small number of “young” respondents, so we will simply split into &lt;35 and 35+.</p>
+<pre class="r"><code>biodata %&lt;&gt;%
+  dplyr::mutate(
+    NumAge = readr::parse_number(Age),
+    Age.group = cut(
+      NumAge,
+      c(0, 35, Inf),
+      c(&quot;&lt;35&quot;, &quot;35+&quot;),
+      right = FALSE,
+      ordered_result = TRUE
+    )
+  )</code></pre>
+<p>Here is a plot of the age distribution before binning: (The “&gt;” values are plotted at the age given, even though it is a minimum.)</p>
+<pre class="r"><code>ggplot(biodata, aes(x = NumAge)) +
+  geom_bar()</code></pre>
+<p><img src="1_data_files/figure-html/plot-age-1.png" width="672" /></p>
+<p>And after binning:</p>
+<pre class="r"><code>ggplot(biodata, aes(Age.group)) +
+  geom_bar()</code></pre>
+<p><img src="1_data_files/figure-html/plot-binned-age-1.png" width="672" /></p>
+</div>
+<div id="gender" class="section level3">
+<h3><span class="header-section-number">2.4.4</span> Gender</h3>
+<p>Values of <code>Sex</code>:</p>
+<pre class="r"><code>unique(biodata$Sex)</code></pre>
+<pre><code>## [1] &quot;F&quot; &quot;M&quot;</code></pre>
+<p>No problems here, make it a factor.</p>
+<pre class="r"><code>biodata$Sex %&lt;&gt;% factor()</code></pre>
+<p>Let’s call it <code>Gender</code> instead of <code>Sex</code>.</p>
+<pre class="r"><code>biodata %&lt;&gt;% dplyr::rename(Gender = Sex)</code></pre>
+</div>
+</div>
+<div id="vernacular-names" class="section level2">
+<h2><span class="header-section-number">2.5</span> Vernacular names</h2>
+<p>Compile all the vernacular names used in the interviews, and count how many times each was given.</p>
+<pre class="r"><code>nametable &lt;- 
+  # add a column to indicate whether the name came from an interview
+  # or focus group
+  list(
+    interviews %&gt;% dplyr::mutate(setting = &quot;interview&quot;),
+    focusgroups %&gt;% dplyr::mutate(setting = &quot;focus group&quot;)
+  ) %&gt;%
+  # select relevant columns and join the tables
+  purrr::map_dfr(
+    dplyr::select,
+    canonicalName, scientificName, Abbrev, Vernacular.name,
+    Language, Meaning.of.the.name, setting
+  ) %&gt;%
+  # force to lower-case
+  dplyr::mutate_at(&quot;Vernacular.name&quot;, tolower) %&gt;%
+  # n is the number of times the name was given in interviews
+  # asterisks (star) indicate that the name was given in focus groups
+  dplyr::group_by_at(dplyr::vars(!setting)) %&gt;%
+  dplyr::summarize(
+    n = sum(setting == &quot;interview&quot;),
+    star = strrep(&quot;*&quot;, sum(setting == &quot;focus group&quot;))
+  ) %&gt;%
+  dplyr::ungroup() %&gt;%
+  # sort
+  dplyr::arrange(Vernacular.name, Language, Abbrev) %&gt;%
+  # a missing name is not a name
+  dplyr::filter(
+    !is.na(Vernacular.name),
+    Vernacular.name != &quot;n/a&quot;,
+    Vernacular.name != &quot;no name&quot;
+  )</code></pre>
+<p>Write the name table to a file; this file was used as a base for further manual name curation.</p>
+<pre class="r"><code>name_table_file &lt;- file.path(data.dir, &quot;name_table.csv&quot;)
+if (!file.exists(name_table_file))
+  readr::write_csv(nametable, name_table_file)</code></pre>
+<p>Read the file with manual name curation.</p>
+<pre class="r"><code>fixed_name_table_file &lt;- file.path(data.dir, &quot;name_table_Boni-SB.xls&quot;)
+fixed_name_table &lt;- readxl::read_xls(fixed_name_table_file) %&gt;%
+  dplyr::mutate_at(&quot;n&quot;, as.integer) %&gt;%
+  dplyr::mutate_at(&quot;star&quot;, tidyr::replace_na, &quot;&quot;)</code></pre>
+<p>Make sure that both files cover all the same rows. These are written to files so that an external diff tool can be used to address any mismatches.</p>
+<pre class="r"><code>match_cols &lt;- c(&quot;canonicalName&quot;, &quot;scientificName&quot;, &quot;Abbrev&quot;,
+                &quot;Vernacular.name&quot;, &quot;Language&quot;, &quot;Meaning.of.the.name&quot;,
+                &quot;n&quot;, &quot;star&quot;)
+nametable_test &lt;- 
+  nametable %&gt;%
+  dplyr::arrange(Language, Vernacular.name, Abbrev,
+                 Meaning.of.the.name, n, star) %&gt;%
+  dplyr::select(dplyr::all_of(match_cols)) %T&gt;%
+  readr::write_csv(file.path(data.dir, &quot;oldnametable.csv&quot;))
+fixed_name_table_test &lt;- 
+  fixed_name_table %&gt;%
+  dplyr::arrange(Language, Vernacular.name, Abbrev,
+                 Meaning.of.the.name, n, star) %&gt;%
+  dplyr::select(dplyr::all_of(match_cols)) %T&gt;%
+  readr::write_csv(file.path(data.dir, &quot;newnametable.csv&quot;))
+
+stopifnot(isTRUE(all.equal(nametable_test, fixed_name_table_test)))</code></pre>
+<p>Create a table using just the curated names.</p>
+<pre class="r"><code>fixed_name_table &lt;-
+  dplyr::select(
+    fixed_name_table,
+    &quot;canonicalName&quot;, &quot;scientificName&quot;, &quot;Abbrev&quot;, 
+    Alternate.name = &quot;Vernacular.name&quot;,
+    Vernacular.name = &quot;New.Vernacular.name&quot;,
+    &quot;Language&quot;,
+    Meaning.of.the.name = &quot;New.Meaning.of.the.name&quot;,
+    &quot;n&quot;, &quot;star&quot;, &quot;explanation&quot;:&quot;technique&quot;) %&gt;%
+  # some rows contain two different names
+  tidyr::separate_rows(Vernacular.name, Meaning.of.the.name, sep = &quot;;&quot;) %&gt;%
+  # remove white space
+  dplyr::mutate_at(c(&quot;Vernacular.name&quot;, &quot;Meaning.of.the.name&quot;), trimws) %&gt;%
+  {dplyr::left_join(
+    dplyr::select(., -&quot;Alternate.name&quot;) %&gt;% 
+      dplyr::group_by(dplyr::across(c(-n, -star))) %&gt;%
+      dplyr::summarize(n = sum(n), star = paste0(star, collapse = &quot;&quot;)),
+    dplyr::select(., Language, Vernacular.name, Alternate.name) %&gt;%
+      dplyr::filter(Vernacular.name != Alternate.name) %&gt;%
+      dplyr::group_by(Language, Vernacular.name) %&gt;%
+      dplyr::summarize_all(paste, collapse = &quot;, &quot;),
+    c(&quot;Language&quot;, &quot;Vernacular.name&quot;)
+  )} %&gt;%
+  dplyr::mutate(species = glue::glue(&quot;{canonicalName} ({n}{star})&quot;)) %&gt;%
+  dplyr::ungroup() %&gt;%
+  dplyr::group_by(Vernacular.name, Language, Meaning.of.the.name,
+           dplyr::across(explanation:technique)) %&gt;%
+  dplyr::summarize(species = paste(species, collapse = &quot;; &quot;))</code></pre>
+<p>Output a file including names which still have multiple entries.</p>
+<pre class="r"><code>problem_name_table &lt;-
+  dplyr::group_by(fixed_name_table, Vernacular.name, Language) %&gt;%
+  dplyr::filter(dplyr::n() &gt; 1) %&gt;%
+  dplyr::arrange(Language, Vernacular.name) %T&gt;%
+  openxlsx::write.xlsx(here::here(&quot;output&quot;, &quot;problem_names.xlsx&quot;))</code></pre>
+<pre><code>## Note: zip::zip() is deprecated, please use zip::zipr() instead</code></pre>
+<p>Format the names table for output.</p>
+<pre class="r"><code>fixed_name_table %&lt;&gt;%
+  tidyr::pivot_longer(
+    cols = unknown:technique,
+    names_to = &quot;characteristics&quot;
+  ) %&gt;%
+  dplyr::filter(!is.na(value)) %&gt;%
+  dplyr::mutate(
+    type = dplyr::case_when(
+      characteristics %in% c(&quot;color&quot;, &quot;shape&quot;, &quot;size&quot;, &quot;texture&quot;, &quot;changes&quot;) ~ &quot;physical&quot;,
+      characteristics %in% c(&quot;habitat&quot;, &quot;growth habit&quot;) ~ &quot;ecological&quot;,
+      characteristics %in% c(&quot;edibility&quot;, &quot;technique&quot;) ~ &quot;practical&quot;,
+      characteristics == &quot;unknown&quot; ~ &quot;unknown&quot;
+    )) %&gt;%
+  dplyr::select(-value) %&gt;%
+  dplyr::ungroup()</code></pre>
+</div>
+</div>
+<div id="combine-and-save-data" class="section level1">
+<h1><span class="header-section-number">3</span> Combine and save data</h1>
+<div id="biographical-and-interview-data" class="section level2">
+<h2><span class="header-section-number">3.1</span> Biographical and interview data</h2>
+<p>Include only the four Ethnic groups with enough data to be included in the statistical analysis.</p>
+<pre class="r"><code>row_data &lt;- interviews %&gt;%
+  dplyr::select(ID, Recognize, Preference, Abbrev) %&gt;%
+  dplyr::left_join(
+    biodata %&gt;%
+      dplyr::select(ID, Village, Ethnic.group, VillageGroup,
+                    Age.group, Gender, Installation),
+    by = &quot;ID&quot;) %&gt;%
+  dplyr::filter(Ethnic.group %in% c(&quot;Gan&quot;, &quot;Yom&quot;, &quot;Lok&quot;, &quot;Bar&quot;))</code></pre>
+<div id="find-data-which-is-only-in-specimens." class="section level3">
+<h3><span class="header-section-number">3.1.1</span> Find data which is only in specimens.</h3>
+<p>Some species were only shown as specimens, and were not available on every day. These are removed from the analysis.</p>
+<pre class="r"><code>specimen.only &lt;- interviews %&gt;%
+  dplyr::select(Specimen.photo, Abbrev) %&gt;%
+  dplyr::group_by(Abbrev) %&gt;%
+  dplyr::filter(all(Specimen.photo == &quot;Specimen&quot;)) %&gt;%
+  dplyr::pull(Abbrev) %&gt;%
+  unique()
+
+row_data %&lt;&gt;% dplyr::filter(!Abbrev %in% specimen.only)</code></pre>
+</div>
+<div id="create-data-for-analyses" class="section level3">
+<h3><span class="header-section-number">3.1.2</span> Create data for analyses</h3>
+<p>Sum the number of species recognized by each respondent to create the data for the GLM analysis.</p>
+<pre class="r"><code>knowledge &lt;- row_data %&gt;%
+  dplyr::group_by(ID, Village, Ethnic.group, Age.group, Gender, Installation) %&gt;%
+  dplyr::summarize(Recognize = sum(Recognize, na.rm = TRUE)) %&gt;%
+  dplyr::ungroup() %&gt;%
+  dplyr::mutate_at(&quot;Ethnic.group&quot;, forcats::fct_drop)</code></pre>
+<p>Make the community matrices for CCA analysis. <code>knowledge.matrix</code> has interviewees as rows, and species as columns, where the value is <span class="math inline">\(1\)</span> if the interviewee recognized the species, or <span class="math inline">\(0\)</span> if they did not. <code>preference.matrix</code> has the same row and column setup, but the value is the degree of preference the interviewee has for the species (or <span class="math inline">\(0\)</span> if they do not use/know it).</p>
+<p>In both cases, we must also remove any rows which are empty, and columns with only one non-zero entry. In the knowledge matrix, this means people which do not know any mushrooms, and mushrooms which only one person knows. In the preference matrix, this means people who do not use any mushrooms (with preference &gt;= 1) and mushrooms which nobody considers useful (preference &gt;= 1).</p>
+<pre class="r"><code>knowledge.matrix &lt;-
+  row_data %&gt;%
+  dplyr::filter(Recognize) %&gt;%
+  dplyr::group_by(Abbrev, ID) %&gt;%
+  dplyr::summarize_at(&quot;Recognize&quot;, max) %&gt;%
+  tidyr::pivot_wider(
+    names_from = Abbrev,
+    values_from = Recognize,
+    values_fill = 0
+  ) %&gt;%
+  dplyr::arrange(ID) %&gt;%
+  tibble::column_to_rownames(&quot;ID&quot;) %&gt;%
+  as.matrix() %&gt;%
+  magrittr::extract(rowSums(.) &gt; 0, colSums(.) &gt; 2)</code></pre>
+<pre class="r"><code>preference.matrix &lt;-
+  row_data %&gt;%
+  dplyr::filter(Recognize, !is.na(Preference)) %&gt;%
+  dplyr::group_by(Abbrev, ID) %&gt;%
+  dplyr::summarize_at(&quot;Preference&quot;, mean) %&gt;%
+  tidyr::pivot_wider(
+    names_from = Abbrev,
+    values_from = Preference,
+    values_fill = 0
+  ) %&gt;%
+  dplyr::arrange(ID) %&gt;%
+  tibble::column_to_rownames(&quot;ID&quot;) %&gt;%
+  as.matrix() %&gt;%
+  magrittr::extract(
+    rowSums(.) &gt; 0,
+    apply(., 2, function(col) sum(col &gt; 0) &gt; 2)
+  )</code></pre>
+<p>The CCAs also require biographical data for the interviewees.</p>
+<pre class="r"><code>knowledge.biodata &lt;- tibble::tibble(ID = row.names(knowledge.matrix)) %&gt;%
+  dplyr::left_join(biodata, by = &quot;ID&quot;)
+preference.biodata &lt;- tibble::tibble(ID = row.names(preference.matrix)) %&gt;%
+  dplyr::left_join(biodata, by = &quot;ID&quot;)</code></pre>
+<p>Write the data as CSVs.</p>
+<pre class="r"><code>if (!dir.exists(here::here(&quot;output&quot;))) dir.create(here::here(&quot;output&quot;))
+readr::write_csv(knowledge, here::here(&quot;output&quot;, &quot;knowledge_data.csv&quot;))
+write.table(knowledge.matrix, here::here(&quot;output&quot;, &quot;knowledge_matrix.csv&quot;))
+write.table(preference.matrix, here::here(&quot;output&quot;, &quot;preference_matrix.csv&quot;))
+readr::write_csv(knowledge.biodata, here::here(&quot;output&quot;, &quot;knowledge_biodata.csv&quot;))
+readr::write_csv(preference.biodata, here::here(&quot;output&quot;, &quot;preference_biodata.csv&quot;))
+readr::write_csv(fixed_name_table, here::here(&quot;output&quot;, &quot;nametable.csv&quot;))</code></pre>
+<p>And as RDS for easy loading in R.</p>
+<pre class="r"><code>saveRDS(interviews, here::here(&quot;output&quot;, &quot;interviews.rds&quot;))
+saveRDS(focusgroups, here::here(&quot;output&quot;, &quot;focusgroups.rds&quot;))
+saveRDS(knowledge, here::here(&quot;output&quot;, &quot;knowledge.rds&quot;))
+saveRDS(knowledge.matrix, here::here(&quot;output&quot;, &quot;knowledge_matrix.rds&quot;))
+saveRDS(preference.matrix, here::here(&quot;output&quot;, &quot;preference_matrix.rds&quot;))
+saveRDS(knowledge.biodata, here::here(&quot;output&quot;, &quot;knowledge_biodata.rds&quot;))
+saveRDS(preference.biodata, here::here(&quot;output&quot;, &quot;preference_biodata.rds&quot;))
+saveRDS(fixed_name_table, here::here(&quot;output&quot;, &quot;nametable.rds&quot;))</code></pre>
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

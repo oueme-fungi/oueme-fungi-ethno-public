@@ -11,5 +11,4 @@ packrat/lib*/
 nohup.out
 *.tex
 *_files
-output
 *_cache
