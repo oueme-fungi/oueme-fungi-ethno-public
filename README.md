@@ -2,7 +2,7 @@
 
 This repository contains data and analysis scripts for
 'Comparison of wild mushroom use by ethnic groups surrounding the Upper Ouémé Reserve Forest in Benin, West Africa',
-currently under submission at (PLOS ONE)[https://journals.plos.org/plosone/].
+currently under submission at [PLOS ONE](https://journals.plos.org/plosone/).
 
 Data files are in the directory "`data`", and analysis scripts as R markdown files are
 in the directory "`R`".
