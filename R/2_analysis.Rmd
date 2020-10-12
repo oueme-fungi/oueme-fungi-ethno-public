@@ -1,0 +1,2121 @@
+---
+title: "Statistical analysis for 'Comparison of wild mushroom use by ethnic groups surrounding the Upper Ouémé Reserve Forest in Benin, West Africa.'"
+author:
+ - "anonymous for submission"
+header-includes:
+  - "\\renewcommand{\\linethickness}{0.05em}"
+output:
+  bookdown::pdf_document2:
+    fig_caption: yes
+    keep_tex: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: no
+    extra_dependencies:
+      - placeins
+      - flafter
+  bookdown::html_document2:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    code_folding: hide
+    self_contained: yes
+    toc_float:
+      collapsed: yes
+---
+
+<!-- Use letters for figure and table numbering -->
+\makeatletter 
+\renewcommand{\thefigure}{\@Alph\c@figure}
+\renewcommand{\thetable}{\@Alph\c@table}
+\makeatother
+\renewcommand{\figurename}{Fig}
+
+This R Markdown notebook includes code and output for all statistical analyses mentioned in the main text, including all main and supplementary figures.
+The lists of figures and tables are hyperlinked for easy access to the supplemental figures and tables.
+
+Data inputs for this notebook are prepared from raw data files by `1_data.Rmd`.
+
+\tableofcontents
+\listoftables
+\listoffigures
+
+# Setup {-}
+
+This section loads data and defines some R functions  and settings which will be used later in the document
+
+```{r setup}
+# output figures as PDF, TIFF, and PNG
+knitr::opts_chunk$set(dev = if (knitr::is_latex_output()) c("pdf", "tiff", "png") else "png", dpi = 300, results = "hold", fig.width = 5.2)
+# silence dplyr::summarize's "helpful" messages
+options(dplyr.summarise.inform = FALSE) 
+```
+
+Load libraries.
+
+```{r libraries, message=FALSE}
+library(magrittr) # %>% and %T>%
+library(ggplot2) # plotting
+library(vegan) # community ecology
+theme_set(theme_bw())
+```
+
+## Symbology
+
+In this section, we define some helper functions that allow us to apply consistent formatting to multiple `ggplot2` plots.
+
+Load plotting aesthetics for different villages, ethnic groups, and their combinations.
+
+```{r load-symbology}
+groups.file <- here::here("data", "groups.csv")
+groups <- readr::read_csv(groups.file, col_types = "cccc")
+villages.file <- here::here("data", "villages.csv")
+villages <- readr::read_csv(villages.file, col_types = "ccccii")
+villagegroups.file <- here::here("data", "villagegroups.csv")
+villagegroups <-
+  readr::read_csv(villagegroups.file, col_types = "cc") %>%
+  dplyr::left_join(groups, by = c("Group")) %>%
+  dplyr::left_join(villages, by = c("Village"), suffix = c("Group", "Village")) %>%
+  dplyr::mutate(
+    VillageGroup = paste0(Village, Group),
+    Label = paste(Village, Group, sep = " / ")
+  )
+```
+
+Make a `ggplot2` object that applies color, shape, and fill to village/group combinations.
+This is used in main CCA plots.
+
+```{r scale_villagegroup}
+scale_villagegroup <- list(
+  scale_shape_manual(
+    values = tibble::deframe(
+      dplyr::select(villagegroups, VillageGroup, ShapeFill)
+    ),
+    name = NULL,
+    breaks = villagegroups$VillageGroup,
+    labels = villagegroups$Label,
+    guide = guide_legend(ncol = 4)
+  ),
+  scale_color_manual(
+    values = tibble::deframe(
+      dplyr::select(villagegroups, VillageGroup, Color)
+    ),
+    name = NULL,
+    breaks = villagegroups$VillageGroup,
+    labels = villagegroups$Label,
+    guide = guide_legend(ncol = 4)
+  ),
+  scale_fill_manual(
+    values = tibble::deframe(
+      dplyr::select(villagegroups, VillageGroup, Fill)
+    ),
+    name = NULL,
+    breaks = villagegroups$VillageGroup,
+    labels = villagegroups$Label,
+    guide = guide_legend(ncol = 4)
+  )
+)
+```
+
+A theme which styles the rest of the main CCA plot.
+
+```{r theme_cca_main}
+theme_cca_main <- list(
+  coord_fixed(),
+  scale_x_continuous(sec.axis = dup_axis(name = NULL, labels = NULL),
+                     expand = expansion(mult = c(0.1, 0.1))),
+  scale_y_continuous(sec.axis = dup_axis(name = NULL, labels = NULL),
+                     expand = expansion(mult = c(0.1, 0.1))),
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical",
+    legend.justification = c(0,0),
+    legend.text = element_text(size = 7),
+    legend.key.size = unit(5, "mm"),
+    legend.margin = margin(0, 3, 0, 0),
+    legend.box.margin = margin(0, 0, 0, 0),
+    legend.spacing.y = unit(0, "pt"),
+    legend.spacing.x = unit(4, "pt"),
+    plot.margin = margin(0, 0, 0, 0),
+    panel.grid = element_blank()
+  )
+)
+```
+
+
+Apply just color and shape based on only village.  This is for CCA sidebar plots.
+
+```{r scale_village}
+scale_village <- list(
+  scale_shape_manual(
+    values = tibble::deframe(dplyr::select(villages, Village, ShapeNofill)),
+    breaks = c("Son", "Fab", "Gan", "Ang", "Bio")
+  ),
+  scale_color_manual(
+    values = tibble::deframe(dplyr::select(villages, Village, Color)),
+    breaks = c("Son", "Fab", "Gan", "Ang", "Bio")
+  )
+)
+```
+
+A theme which styles the rest of the sidebar CCA plots.
+
+```{r theme_cca_side}
+theme_cca_side <- list(
+  coord_fixed(),
+  scale_x_continuous(label = NULL, name = NULL,
+                     sec.axis = dup_axis(name = NULL, labels = NULL)),
+  scale_y_continuous(label = NULL, name = NULL,
+                     sec.axis = dup_axis(name = NULL, labels = NULL)),
+  lemon::facet_rep_wrap(~Ethnic.group, ncol = 1, strip.position = "right"),
+  theme(
+    strip.placement = "outside",
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 9),
+    legend.key.size = unit(2.5, "mm"),
+    legend.box.spacing = unit(5, "pt"),
+    legend.box.margin = margin(3, 3, 3, 3),
+    legend.margin = margin(0, 0, 0, 0),
+    plot.margin = margin(0, 0, 0, 5),
+    panel.grid = element_blank()
+  )
+)
+```
+
+
+## Species abbreviations
+
+Load species names and abbreviations.
+
+```{r load-species-key}
+species.file <- here::here("data", "species.csv")
+specieskey <- readr::read_csv(species.file, col_types = "cccc")
+abbrevkey <- dplyr::select(specieskey, Abbrev, canonicalName) %>%
+  unique()
+```
+
+# Vernacular names
+
+## Read data
+
+Read the data.
+
+```{r read-name-table}
+name_table <- readRDS(here::here("output", "nametable.rds"))
+```
+
+## Name stats
+
+Output counts of names which are mentioned in the text.
+
+### Number of vernacular names
+
+```{r name_count}
+dplyr::distinct(name_table, Vernacular.name, Language) %>% nrow()
+```
+
+### Number of vernacular names per language
+
+Count the number of distinct vernacular names given in each language (Table \@ref(tab:names-per-language)).
+
+(ref:names-per-language) **Number of vernacular names recorded by language.**
+
+```{r names-per-language, render=lemon::lemon_print, caption="(ref:names-per-language)", kable.opts=list(caption.short="Number of vernacular names recorded by language.", booktabs=TRUE)}
+dplyr::distinct(name_table, Vernacular.name, Language) %>%
+  dplyr::count(Language)
+```
+
+\FloatBarrier
+
+---
+
+## Name categories
+
+Make a table of name categories by ethnic group.
+Only Bariba, Gando, Lokpa, and Yom names are included, because the other language (Peulh) was not well sampled.
+
+(ref:name-categories) **Number of names in each language which belong to each semantic category.**
+
+```{r name-categories, render = lemon::lemon_print, caption = "(ref:name-categories)", kable.opts=list(caption.short = "Number of names in each language which belong to each semantic category.", booktabs=TRUE)}
+name_categories <- 
+  dplyr::group_by(name_table, Language, type) %>%
+  dplyr::filter(Language %in% c("Bariba", "Gando", "Lokpa", "Yom")) %>%
+  dplyr::tally() %>%
+  tidyr::pivot_wider(
+    names_from = type,
+    values_from = n,
+    values_fill = 0L
+  )
+name_categories
+name_categories %<>%
+  tibble::column_to_rownames("Language") %>%
+  as.matrix()
+```
+
+
+\FloatBarrier
+
+---
+
+Test whether the distribution of names is uniform, given the marginal totals, using the Fisher test. 
+
+```{r name-cat-fisher}
+set.seed(8934567)
+fisher.test(name_categories, simulate.p.value = TRUE, B = 1e6)
+```
+
+The test strongly rejects the null hypothesis.
+
+---
+
+Do correspondence analysis (CA) of name categories and languages to visualize the variation.
+
+```{r name-cat-ca}
+category_ca <- vegan::cca(name_categories)
+category_ca
+```
+
+`r (category_ca$CA$eig[1]/sum(category_ca$CA$eig) * 100) %>% format(digits = 2, format = "fg") %>% paste0("%")` of the inertia is explained by the first axis, but we'll look at the first two (`r (sum(category_ca$CA$eig[1:2])/sum(category_ca$CA$eig) * 100) %>% format(digits = 2, format = "fg") %>% paste0("%")` of explained inertia) because it's easier to visualize two dimensions at once (Fig \@ref(fig:S5-figure)).
+
+---
+
+(ref:s5cap) **Correspondence Analysis (CA) plot for semantic categories used in mushroom names in different languages.**
+
+```{r S5-figure, fig.cap="(ref:s5cap)", fig.scap="Correspondence Analysis (CA) plot for semantic categories used in mushroom names in different languages.", fig.align='center'}
+type_lang_scores <- scores(category_ca, scaling = "symmetric") %>%
+  purrr::map2_dfr(
+    c("category", "language"),
+    ~ tibble::tibble(
+      label = rownames(.x),
+      CA1 = .x[,1],
+      CA2 = .x[,2],
+      type = .y
+    )
+  )
+
+
+ggplot(aes(x = CA1, y = CA2, label = label,
+           color = type, shape = type),
+       data = type_lang_scores) +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_point() +
+  ggrepel::geom_text_repel(show.legend = FALSE) +
+  scale_color_manual(values = list(language = "red", category = "grey40")) +
+  scale_shape_manual(values = list(language = 16, category = 1)) +
+  scale_x_continuous(sec.axis = dup_axis(name = NULL)) +
+  scale_y_continuous(sec.axis = dup_axis(name = NULL)) +
+  coord_fixed() +
+  theme(panel.grid = element_blank())
+```
+
+\FloatBarrier
+
+---
+
+## Name characteristics
+
+Make a table of name characteristics by ethnic group (Table \@ref(tab:name-characteristics-table)).
+Only Bariba, Gando, Lokpa, and Yom names are included, because the other language (Peulh) was not well sampled.
+
+(ref:name-characteristics-table) **Number of names in each language which belong to each characteristic.**
+
+```{r name-characteristics-table, render = lemon::lemon_print, caption ="(ref:name-characteristics-table)", kable.opts=list(caption.short ="Number of names in each language which belong to each characteristic.", booktabs=TRUE)}
+name_characteristics <- name_table %>%
+  dplyr::filter(Language %in% c("Bariba", "Gando", "Lokpa", "Yom")) %>%
+  dplyr::group_by(Language, characteristics) %>%
+  dplyr::tally() %>%
+  tidyr::pivot_wider(
+    names_from = characteristics,
+    values_from = n,
+    values_fill = 0L
+  )
+name_characteristics
+name_characteristics %<>%
+  tibble::column_to_rownames("Language") %>%
+  as.matrix()
+```
+
+\FloatBarrier
+
+---
+
+Test whether the distribution of names is uniform, given the marginal totals, using the Fisher test. 
+
+```{r name-char-fisher}
+set.seed(2387)
+name_characteristics %>%
+  fisher.test(simulate.p.value = TRUE, B = 1e6)
+```
+
+The test strongly rejects the null hypothesis.
+
+---
+
+Do correspondence analysis (CA) of name characteristics and languages to visualize the variation.
+
+```{r name-char-ca}
+characteristic_ca <- vegan::cca(name_characteristics)
+characteristic_ca
+```
+
+`r (characteristic_ca$CA$eig[1]/sum(characteristic_ca$CA$eig) * 100) %>% format(digits = 2, format = "fg") %>% paste0("%")` of the inertia is explained by the first axis, but we'll look at the first two (`r (sum(characteristic_ca$CA$eig[1:2])/sum(characteristic_ca$CA$eig) * 100) %>% format(digits = 2, format = "fg") %>% paste0("%")` of explained inertia) because it's easier to visualize two dimensions at once (Fig \@ref(fig:S6-figure)).
+
+---
+
+(ref:s6cap) **Correspondence Analysis (CA) plot for characteristics used in mushroom names in different languages.**
+
+```{r S6-figure, fig.cap="(ref:s6cap)",fig.scap="Correspondence Analysis (CA) plot for characteristics used in mushroom names in different languages.", fig.align='center'}
+characteristic_lang_scores <- 
+  vegan::scores(characteristic_ca, scaling = "symmetric", choices = 1:3) %>%
+  purrr::map2_dfr(
+    c("characteristic", "language"),
+    ~ tibble::tibble(
+      label = rownames(.x),
+      CA1 = .x[,1],
+      CA2 = .x[,2],
+      CA3 = .x[,3],
+      type = .y
+    )
+  )
+
+ggplot(aes(x = CA1, y = CA2, label = label,
+           color = type, shape = type),
+       data = characteristic_lang_scores) +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_point() +
+  ggrepel::geom_text_repel(show.legend = FALSE) +
+  scale_color_manual(values = list(
+    language = "red",
+    characteristic = "grey40"
+  )) +
+  scale_shape_manual(values = list(
+    language = 16,
+    characteristic = 1
+  )) +
+  scale_x_continuous(sec.axis = dup_axis(name = NULL)) +
+  scale_y_continuous(sec.axis = dup_axis(name = NULL),
+                     expand = expansion(mult = 0.1)) +
+  coord_fixed() +
+  theme()
+```
+
+\FloatBarrier
+
+---
+
+Write the name table to a file (S2 Table).
+
+```{r write-name-table}
+ name_table %>%
+  dplyr::group_by(dplyr::across(!characteristics & !type)) %>%
+  dplyr::summarize(
+    characteristics = paste(type, characteristics,
+                            sep = ":", collapse = "; ")
+  ) %>%
+  dplyr::rename_all(chartr, old = ".", new = " ") %>%
+  dplyr::rename_all(stringr::str_to_sentence) %>%
+  openxlsx::write.xlsx(here::here("output", "name_table.xlsx"))
+```
+
+# Interview stats
+
+These values are given in the results section of the paper.
+
+## Load data
+
+```{r load-interview-data}
+interviews <- readRDS(here::here("output", "interviews.rds"))
+focusgroups <- readRDS(here::here("output", "focusgroups.rds"))
+```
+
+## Number of interviews
+
+```{r n-interviews}
+dplyr::n_distinct(interviews$ID)
+```
+
+## Number of mushroom citations
+
+```{r n-citations}
+nrow(interviews)
+```
+
+## Mean and median number of citations per interviewee
+
+```{r n-citation-per-interviewee}
+  dplyr::count(interviews, ID) %$%
+  c(mean = mean(n), median = median(n))
+```
+
+## Number of specimens cited in interviews
+
+```{r n-interview-cited-specimens}
+interview_specimens <- 
+  dplyr::filter(interviews, Specimen.photo == "Specimen") %>%
+  dplyr::select(Species.photo, canonicalName, scientificName) %>%
+  unique()
+
+nrow(interview_specimens)
+```
+
+## Number of specimens cited in focus groups
+
+```{r n-focus-cited-specimens}
+focusgroup_specimens <- 
+  dplyr::filter(focusgroups, Specimen.photo == "Specimen") %>%
+  dplyr::select(Species.photo, canonicalName, scientificName) %>%
+  unique()
+nrow(focusgroup_specimens)
+```
+
+## Number of specimens cited in focus groups and interviews combined
+
+```{r n-cited-specimens}
+cited_specimens <- dplyr::union(interview_specimens, focusgroup_specimens)
+nrow(cited_specimens)
+```
+
+### Number of species represented by cited specimens
+
+```{r n-cited-specimen-species}
+dplyr::n_distinct(cited_specimens$canonicalName)
+```
+
+
+## Number of cited "sp." specimens
+
+(indentified to genus but not species)
+
+```{r n-cited-sp-specimens}
+is_sp <- grepl("sp\\.", cited_specimens$canonicalName)
+sum(is_sp)
+```
+
+### Number of "sp." species represented by cited specimens
+
+```{r n-cites-sp-species}
+dplyr::n_distinct(cited_specimens$canonicalName[is_sp])
+```
+
+## Number of cited "cf." specimens
+
+(indentified to species with low certainty, or to a species which is unlikely to occur in tropical Africa).
+
+```{r n-cited-cf-specimens}
+is_cf <- grepl("cf\\.", cited_specimens$canonicalName)
+sum(is_cf)
+```
+
+### Number of "cf." species represented by cited specimens
+
+```{r n-cited-cf-species}
+dplyr::n_distinct(cited_specimens$canonicalName[is_cf])
+```
+
+## Number of "nom. prov." specimens
+
+```{r n-nomprov-specimens}
+is_nomprov <- grepl("nom\\. prov\\.", cited_specimens$scientificName)
+sum(is_nomprov)
+```
+
+### Number of "nom. prov." species represented by cited specimens
+
+```{r n-nomprov-species}
+dplyr::n_distinct(cited_specimens$canonicalName[is_nomprov])
+```
+
+## Number of specimens confidently assigned to a species:
+
+```{r n-confident-specimens}
+is_confident <- !(is_sp | is_cf | is_nomprov)
+sum(is_confident)
+```
+
+### Number of confidently assigned species represented by cited specimens:
+
+```{r n-confident-species}
+dplyr::n_distinct(cited_specimens$canonicalName[is_confident])
+```
+
+
+# Number of recognized species
+
+This analysis focuses strictly on the number of different species recognized by each respondent.
+The analogy in community ecology is species richness.
+
+## Load data
+
+Load data for number of species known per participant.
+
+```{r read-knowledge}
+knowledge <- readRDS(here::here("output", "knowledge.rds"))
+```
+
+## Sampling balance
+
+Make contingency tables for different pairs of factors, and test for independence using Fisher's exact test.
+
+### Number of residents interviewed from each ethnic group and village
+
+```{r tab-ethn-village}
+knowledge %>%
+  dplyr::select(Ethnic.group, Village) %>%
+  table() %T>%
+  print() %>%
+  fisher.test(workspace = 2e6)
+```
+
+This table is highly unbalanced due to the presence of 0's for many ethnic group/village combinations, but it is still fairly balanced for the pairs that exist, so we can test for $\text{Village}$ and $\text{Ethnic.group}$ effects at the same time, at least in the small number of cases where it is relevant. 
+
+### Number of residents interviewed from each gender and village
+
+```{r tab-gender-village}
+knowledge %>%
+  dplyr::select(Gender, Village) %>%
+  table() %T>%
+  print() %>%
+  fisher.test()
+```
+
+This was intentionally balanced in the sampling design.
+
+### Number of residents interviewed from each gender and ethnic group
+
+```{r tab-gender-ethn}
+knowledge %>%
+  dplyr::select(Gender, Ethnic.group) %>%
+  table() %T>%
+  print() %>%
+  fisher.test()
+```
+
+This was intentionally balanced in the sampling design.
+
+### Number of residents interviewed from each gender and age
+
+```{r tab-gender-age}
+knowledge %>%
+  dplyr::select(Gender, Age.group) %>%
+  table() %T>%
+  print() %>%
+  fisher.test()
+```
+
+This is not very balanced, so we avoid $\text{Gender} \times \text{Age}$ interactions.
+
+### Number of residents interviewed from each age and ethnic group
+
+```{r tab-age-ethn}
+knowledge %>%
+  dplyr::select(Age.group, Ethnic.group) %>%
+  table() %T>%
+  print() %>%
+  fisher.test(workspace = 2e6)
+```
+
+This is quite unbalanced.
+This means that $\text{Ethnic.group} \times \text{Age.group}$ interactions are problematic.
+
+### Number of residents interviewed from each age and village
+
+```{r tab-age-village}
+knowledge %>%
+  dplyr::select(Age.group, Village) %>%
+  table() %T>%
+  print() %>%
+  fisher.test(workspace = 2e6)
+```
+
+This is very unbalanced, so we also avoid $\text{Village} \times \text{Age.group}$ interactions
+
+### Number of residents interviewed from each gender, ethnic group, and village
+
+(ref:tab-gender-village-ethn) **Number of male and female interviewees from each village and ethnic group.** (Table 2 in main text.) Due to the small number of Nagot and Peulh respondents, these groups were not included in statistical analyses, but information from these interviews is included in Table 3 and S5 Table. X: Groups for which a focus group was conducted. *Seperate focus groups for men and women were conducted.
+
+```{r tab-gender-village-ethn, render =lemon::lemon_print, caption = "(ref:tab-gender-village-ethn)", kable.opts=list(caption.short = "Number of male and female interviewees from each village and ethnic group. (Table 2 in  main text.)", booktabs=TRUE)}
+knowledge %>%
+  dplyr::select(Gender, Village, Ethnic.group) %>%
+  table() %>%
+  as.data.frame() %>%
+  tibble::as_tibble() %>%
+  dplyr::filter(Freq > 0) %>%
+  tidyr::pivot_wider(names_from = Gender, values_from = Freq) %>%
+  dplyr::arrange(Village, Ethnic.group) %>%
+  # put an X if there was a focus group
+  dplyr::left_join(
+    dplyr::transmute(
+      focusgroups,
+      Village = Village,
+      Ethnic.group = Ethnic.group,
+      Focus.group = "X",
+      Sex = Sex
+    ) %>%
+      dplyr::group_by(Village, Ethnic.group, Focus.group) %>%
+      dplyr::summarize(star = if(dplyr::n_distinct(Sex) > 1) "*" else ""),
+    by = c("Village", "Ethnic.group")
+  ) %>%
+  tidyr::replace_na(list(Focus.group = "", star = "")) %>%
+  tidyr::unite("Focus.group", Focus.group, star, sep = "")
+```
+
+\FloatBarrier
+
+---
+
+This is close to balanced for all the combinations which exist.
+
+### VIF
+
+Calculate (generalized) variance inflation factors for all predictors (Table \@ref(tab:vif)).
+This gives an error if we treat Ethnic group and Village independently, since these are aliased (e.g., every interviewee from Gando village is a member of the Gando ethnic group, and *vice versa*).
+Instead, for this calculation we combine the two factors into one factor with 7 levels.
+
+(ref:vif) **Variance inflation factors for gender, age, and ethnic group/village combination.**
+
+```{r vif, render = lemon::lemon_print, caption="(ref:vif)", kable.opts=list(caption.short="Variance inflation factors for gender, age, and ethnic group/village combination.", booktabs=TRUE)}
+car::vif(
+  glm(
+    Recognize ~ Gender + Age.group + paste(Ethnic.group, Village),
+    data = knowledge,
+    family = "poisson"
+  )
+) %>%
+  tibble::as_tibble(rownames = "Term") %>%
+  dplyr::mutate("GVIF^(1/Df)" = `GVIF^(1/(2*Df))`^2)
+```
+
+\FloatBarrier
+
+---
+
+Despite the not-too-encouraging Fisher tests for combinations involving age group, the variance inflation factors are fine; in all cases $\text{GVIF}^{1/D_f} << 4$.
+
+---
+
+## Generalized linear model (GLM)
+
+Fit a generalized linear model using the Poisson distribution and log link function, using backwards selection by AIC.
+
+The full model includes Gender, Ethnic.group, and Village, as well as all their interactions, as well as Age.group.
+At each step, the terms are removed one at a time, and the term whose removal leads to the lowest (best) AIC is removed.
+This is continued until removing any of the remaining terms leads to a higher (worse) AIC.
+
+```{r knowledge-glm}
+knowledge.glm <- glm(
+  formula = Recognize ~ (Gender + Ethnic.group + Village)^2 + Age.group,
+  data = knowledge,
+  family = poisson(link = "log")
+)
+knowledge.glm <- step(
+  knowledge.glm,
+  scope = Recognize ~ 1,
+  direction = "backward",
+  trace = TRUE
+)
+```
+
+The final model is `r knowledge.glm$terms %>% formula %>% format`
+(AIC = `r AIC(knowledge.glm)`).
+
+Run a Type II (aka marginal; testing removal of each term vs. the full model) ANOVA table for the GLM.
+
+```{r knowledge-glm-anova}
+car::Anova(knowledge.glm)
+```
+
+Show the fit coefficients of the model (Table \@ref(tab:knowledge-glm-coef)).
+
+(ref:knowledge-glm-coef) **Coefficients and associated confidence intervals for Poisson GLM.**
+
+```{r knowledge-glm-coef, render=lemon::lemon_print, caption="(ref:knowledge-glm-coef)", kable.opts=list(caption.short="Coefficients and associated confidence intervals for Poisson GLM.", booktabs=TRUE)}
+broom::tidy(knowledge.glm, conf.int = TRUE)
+```
+
+\FloatBarrier
+
+---
+
+Display model checking results (Fig \@ref(fig:S1-figure)).
+
+(ref:s1cap) **Model checking results for generalized linear model of number of species recognized.** (a) Residuals vs. fitted values; (b) Normal Q-Q plot; (c) Scale-location plot; (d) Residuals vs. leverage.
+
+```{r S1-figure, fig.cap="(ref:s1cap)", fig.scap="Model checking results for generalized linear model of number of species recognized.", fig.align='center'}
+# This could be done in less code,
+# i.e. plot(knowledge.glm)
+# but we want to put the individual plot headers in the figure caption.
+par(mfrow = c(2, 2), mar = c(3, 3, 1.2, 0), oma = c(0, 0, 0, 0),
+    mgp = c(1.5, 0.5, 0))
+for (i in 1:4) {
+  plot(knowledge.glm, caption = NULL, which = c(1:3, 5)[i])
+  mtext(text = paste0("(", letters[i], ")"), side = 3, line = 0.2, adj = 0)
+}
+```
+
+\FloatBarrier
+
+---
+
+## Reduced GLM for comparison of ethnic groups
+
+Contrasts between all ethnic groups are not estimable using the above model, because the different groups inhabit different villages.
+(However, they are also not nested!)
+
+Fit a model without Village, so that we can estimate contrasts between all ethnic groups.
+
+```{r no-village-glm}
+knowledge.glm.novill <- 
+  update(knowledge.glm, ~ . - Village)
+```
+
+The model is `r knowledge.glm.novill$terms %>% formula %>% format`
+(AIC = `r AIC(knowledge.glm.novill)`).
+
+---
+
+Show the fit coefficients of the no-village model (Table \@ref(tab:knowledge-glm-novill-coeff)).
+
+(ref:knowledge-glm-novill-coeff) **Coefficients and confidence intervals for Poisson GLM, fit without village as a predictor.**
+
+```{r knowledge-glm-novill-coeff, render =lemon::lemon_print, caption="(ref:knowledge-glm-novill-coeff)", kable.opts=list(caption.short="Coefficients and confidence intervals for Poisson GLM, fit without village as a predictor.", booktabs=TRUE)}
+broom::tidy(knowledge.glm.novill, conf.int = TRUE)
+```
+
+\FloatBarrier
+
+---
+
+Show the model checking results (Fig \@ref(fig:S2-figure)).
+
+(ref:s2cap) **Model checking results for generalized linear model of number of species recognized, without using village as a variable.** (a) Residuals vs. fitted values; (b) Normal Q-Q plot; (c) Scale-location plot; (d) Residuals vs. leverage.
+
+```{r S2-figure, fig.cap = "(ref:s2cap)", fig.scap="Model checking results for generalized linear model of number of species recognized, without using village as a variable.", fig.align='center'}
+par(mfrow = c(2, 2), mar = c(3, 3, 1.2, 0), oma = c(0, 0, 0, 0),
+    mgp = c(1.5, 0.5, 0))
+for (i in 1:4) {
+  plot(knowledge.glm.novill, caption = NULL, which = c(1:3, 5)[i])
+  mtext(text = paste0("(", letters[i], ")"), side = 3, line = 0.2, adj = 0)
+}
+```
+
+\FloatBarrier
+
+---
+
+## Marginal effects
+
+Calculate pairwise contrasts for the full GLM.
+
+```{r glm-contrasts}
+coef_plot_table <- 
+  purrr::pmap_dfr(
+    # define the order we will use for each contrast,
+    # and that we need a difference Gender contrast for each Ethnic group
+    tibble::tribble(
+      ~specs,         ~contrast,     ~by,
+      "Gender",       "pairwise",    "Ethnic.group",
+      "Ethnic.group", "revpairwise", NULL,
+      "Village",      "revpairwise", NULL,
+      "Age.group",    "revpairwise", NULL
+    ),
+    # calculate marginal means
+    ~ emmeans::emmeans(
+      knowledge.glm,
+      specs = ..1,
+      by = ..3,
+      type = "response"
+    ) %>%
+      # calculate contrasts
+      emmeans::contrast(..2) %>%
+      # add confidence intervals and compact letter display
+      purrr::invoke_map(
+        .f = list(broom::tidy, confint, emmeans::CLD),
+        .x = list(NULL, NULL, list(Letters = letters, reversed = TRUE))
+      ) %>%
+      # Not all elements have the same columns, so we can't specify
+      # the "by" columns in this join.  Suppress the messages.
+      purrr::reduce(~suppressMessages(dplyr::left_join(.x, .y))) %>%
+      dplyr::mutate(term = ..1, type = ..2)
+  ) %>%
+  # clean up the output for display
+  dplyr::mutate_at("Ethnic.group", forcats::fct_explicit_na, "") %>%
+  dplyr::filter(
+    complete.cases(.)
+    ) %>%
+  dplyr::mutate_at("contrast", stringr::str_remove, " effect") %>%
+  dplyr::mutate_at("contrast", forcats::as_factor) %>%
+  dplyr::mutate_at("term", forcats::as_factor) %>%
+  dplyr::mutate_at(
+    "term", dplyr::recode_factor,
+    Age.group = "Age group",
+    Ethnic.group = "Ethnic group"
+  ) %>%
+  dplyr::select(term, Ethnic.group, contrast, type, ratio,
+         asymp.LCL, asymp.UCL, p.value, Group = .group)
+```
+
+---
+
+Show the contrasts in a table (Table \@ref(tab:tab5)).
+
+(ref:tab5cap) **Estimated response ratios for Poisson GLM.** (Table 5 in main text.) Pairwise contrast ratios relating number of mushroom species known to respondent gender, age group, ethnic group, and village. The effect of respondent gender was modeled as an interaction with ethnic group, so different values are given for the four ethnic groups; Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. For each contrast, the ratio is given along with its 95% confidence interval in parentheses.
+
+```{r tab5, render=lemon::lemon_print, caption="(ref:tab5cap)", kable.opts=list(caption.short = "Estimated response ratios for Poisson GLM. (Table 5 in main text.)", booktabs=TRUE)}
+# For the table, do pairwise contrasts for everything.
+coef_plot_table %>%
+  dplyr::filter(endsWith(type, "pairwise")) %>%
+  dplyr::transmute(
+    Term = term,
+    "Ethnic Group" = ifelse(
+      Ethnic.group == "",
+      "-",
+      as.character(Ethnic.group)
+    ),
+    Contrast = contrast,
+    Ratio = paste0(
+      formatC(ratio, digits = 2, format = "f"),
+      " (",
+      formatC(asymp.LCL, digits = 2, format = "f"),
+      "–",
+      formatC(asymp.UCL, digits = 2, format = "f"),
+      ")"
+    ),
+    P = formatC(p.value, digits = 2)
+  ) %T>%
+  readr::write_csv(here::here("output/table5.csv"))
+```
+
+\FloatBarrier
+
+---
+
+Now do the same calculations, but only for differences between ethnic groups in the no-village model.
+
+```{r coef-tab-novill}
+coef_table_novill <-
+  # calculate marginal means
+  emmeans::emmeans(
+    knowledge.glm.novill,
+    "Ethnic.group",
+    type = "response"
+  ) %>%
+  # It will be easier to read four effect contrasts than six pairwise
+  # contrasts
+  emmeans::contrast("eff") %>% 
+  # Add confidence intervals and compact letter display.
+  purrr::invoke_map(
+    .f = list(broom::tidy, confint, emmeans::CLD),
+    .x = list(NULL, NULL, list(Letters = letters, reversed = TRUE))
+    ) %>%
+  # Not all elements have the same columns, so we can't specify
+  # the "by" columns in this join.  Suppress the messages.
+  purrr::reduce(~suppressMessages(dplyr::left_join(.x, .y))) %>%
+  dplyr::mutate_at(
+    "contrast",
+    stringr::str_remove,
+    pattern = " effect"
+  ) %>%
+  # Clean up output for display
+  dplyr::select(contrast, ratio, asymp.LCL, asymp.UCL, p.value, Group = .group) %>%
+  dplyr::mutate(term = "Ethnic group", type = "eff")
+```
+
+(ref:coef-table-novill-cap) **Estimated response ratios for Poisson GLM without village effect.** Effect ratios relating number of mushroom species known to respondent ethnic group vs. the all groups mean; Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. For each ethnic group, the ratio is given along with its 95% confidence interval in parentheses. P indicates the result of a test that the ethnic group differs from the overall mean. Ethnic groups with different letters in the "Groups" column differed in a pairwise test at p < 0.05.
+
+```{r show-coef-table-novill, render=lemon::lemon_print, caption="(ref:coef-table-novill-cap)", kable.opts=list(caption.short = "Estimated response ratios for Poisson GLM without village effect.", booktabs=TRUE)}
+coef_table_novill %>%
+  dplyr::transmute(
+    `Ethnic Group` = contrast,
+    Ratio = paste0(
+      formatC(ratio, digits = 2, format = "f"),
+      " (",
+      formatC(asymp.LCL, digits = 2, format = "f"),
+      "–",
+      formatC(asymp.UCL, digits = 2, format = "f"),
+      ")"
+    ),
+    P = formatC(p.value, digits = 2),
+    Group = Group
+  )
+```
+
+\FloatBarrier
+
+---
+
+Make a figure showing the effects (Fig \@ref(fig:Fig2)).
+
+(ref:fig2cap) **Estimated marginal effect contrasts based on Poisson GLM.** (Fig 2 in main text.) Multiplicative effects on the number of mushroom species recognized based on respondent gender, ethnic group, age group, and village. For gender, age, and village, pairwise contrast ratios are shown. For ethnic group, the effect of each group is contrasted with the all-group mean. Points represent the estimated contrast ratio for each variable with each other variable held constant. Horizontal lines represent the 95% confidence interval. Dashed vertical line at 1 represents no effect. Points and confidence intervals are colored red for pairwise contrasts which were significant at p < 0.05. The effect of respondent gender was found to vary significantly among ethnic groups, so different values are given for each ethnic group; Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. For villages, only contrasts between villages which were comparable due to containing respondents from the same ethnic group are included. Neither of these contrasts were statistically significant at p < 0.05. Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Son = Sonnoumon. Comparisons between ethnic groups are based on a GLM which did not include village as a predictor. For ethnic group, the results of pairwise tests are indicated by letters, where groups which have the same letter do not differ significantly.
+
+```{r Fig2, fig.width = 4, fig.height = 3.5, fig.cap="(ref:fig2cap)", fig.scap="Estimated marginal effect contrasts based on Poisson GLM. (Fig 2 in main text.)", fig.align='center'}
+# put together contrast tables for the model with and without Village
+dplyr::bind_rows(
+  coef_plot_table,
+  coef_table_novill
+  ) %>%
+  # For Gender, Age group, and Village, we want pairwise contrasts.
+  # For Ethnic Group, looking at effect contrasts with group indicators is
+  # more succinct.
+  dplyr::filter(
+    !(term %in% c("Gender", "Age group") & endsWith(type, "eff")),
+    !(term %in% c("Ethnic group") & endsWith(type, "pairwise"))
+  ) %>%
+  # don't display "NA" when there is no interaction with Ethnic group
+  dplyr::mutate_at("Ethnic.group", forcats::fct_explicit_na, "") %>%
+  # reverse the ordering of contrasts.
+  # They will be on the vertical axis,
+  # but we want them ordered from top to bottom.
+  dplyr::mutate_at("contrast", forcats::as_factor) %>%
+  dplyr::mutate_at("contrast", forcats::fct_rev) %>%
+  # Define the order that terms will be presented, and abbreviate Age.
+  dplyr::mutate_at(
+    "term",
+    factor,
+    levels = c("Gender", "Age group", "Village", "Ethnic group"),
+    labels = c("Gender", "Age", "Village", "Ethnic group")
+  ) %>%
+  # remove the group indicators when there is only one group
+  # and for pairwise contrasts
+  dplyr::group_by(Ethnic.group, term, type) %>%
+  dplyr::mutate(
+    Group = if (dplyr::n_distinct(Group) > 1 && all(type == "eff"))
+      Group else ""
+  ) %>%
+  # make the plot
+  ggplot(aes(
+    x = contrast,
+    y = ratio,
+    ymin = asymp.LCL,
+    ymax = asymp.UCL,
+    # color significant pairwise contrasts red
+    color = ifelse(
+      endsWith(type, "pairwise") & (p.value < 0.05),
+      "red",
+      "black"
+    ),
+    label = ifelse(type == "eff", Group, "")
+  )) +
+  # vertical line at 0 (hline because coordinates are swapped)
+  geom_hline(
+    aes(yintercept = 1),
+    alpha = 0.3,
+    linetype = 2
+  ) +
+  # draw points and confidence intervals
+  geom_pointrange(fatten = 3) +
+  # interpret the color values ("red" and "black") as literal colors.
+  scale_color_identity() +
+  # draw group identifiers
+  geom_text(mapping = aes(y = asymp.UCL), nudge_y = 0.1) +
+  # flip axes
+  coord_flip() +
+  # make sure 0 is included in the range
+  scale_y_continuous(limits = c(0, NA)) +
+  # seperate the different terms
+  ggh4x::facet_nested(
+    term + Ethnic.group ~ .,
+     scales = "free_y",
+     space = "free_y",
+    nest_line = TRUE
+    ) +
+  # label axes
+  xlab(NULL) +
+  ylab("Ratio") +
+  # remove gray rectangles around term labels
+  theme(strip.background = element_blank())
+```
+
+\FloatBarrier
+
+---
+
+## Model predictions
+
+Plot the model predictions along with observed data (Fig \@ref(fig:S7-figure)).
+
+(ref:s7cap) **Observed data (points) and model predictions (lines) for the Poisson GLM.** Number of mushroom species recognized vs. respondent gender, age group, village, and ethnic group. Shaded areas represent 95% confidence intervals of model predictions.
+
+```{r S7-figure, fig.asp=1.5, fig.width = 4, fig.cap="(ref:s7cap)", fig.scap="Observed data (points) and model predictions (lines) for the Poisson GLM.", fig.align='center'}
+kn.plot <-
+  dplyr::select(knowledge, Age.group, Gender, Ethnic.group, Village) %>%
+  unique() %>%
+  tidyr::complete(
+    tidyr::nesting(Ethnic.group, Village),
+    Age.group,
+    Gender
+  ) %>%
+  cbind(predict(knowledge.glm, ., type = "link", se.fit = TRUE)) %>%
+  dplyr::mutate(
+    lower = fit - 2 * se.fit,
+    upper = fit + 2 * se.fit
+  ) %>%
+  dplyr::mutate_at(
+    c("fit", "lower", "upper"),
+    family(knowledge.glm)$linkinv
+  ) %>%
+  dplyr::mutate(
+    Ethnic.group = dplyr::recode_factor(
+      Ethnic.group,
+      Lok = "Lokpa",
+      Yom = "Yom",
+      Bar = "Bariba",
+      Gan = "Gando"
+    ),
+    Village = dplyr::recode_factor(
+      Village,
+      Ang = "Angaradebou",
+      Bio = "Bio Sika",
+      Fab = "Faba",
+      Son = "Sonnoumon",
+      Gan = "Gando"
+    )
+  ) %>% 
+  ggplot(
+    aes(y = fit, x = Age.group, group = Gender, color = Gender,
+                 linetype = Gender, shape = Gender)
+  ) +
+  geom_ribbon(
+    aes(x = Age.group, ymin = lower, ymax = upper,
+                 group = Gender, fill = Gender),
+    alpha = 0.4,
+    inherit.aes = FALSE
+  ) +
+  geom_line() +
+  facet_wrap(
+    ~ Village + Ethnic.group,
+    ncol = 2,
+    strip.position = "top",
+    dir = "h"
+  ) +
+  geom_jitter(
+    data = knowledge %>%
+      dplyr::mutate(
+        Ethnic.group = dplyr::recode_factor(
+          Ethnic.group,
+          Lok = "Lokpa",
+          Yom = "Yom",
+          Bar = "Bariba",
+          Gan = "Gando"
+        ),
+        Village = dplyr::recode_factor(
+          Village,
+          Ang = "Angaradebou",
+          Bio = "Bio Sika",
+          Fab = "Faba",
+          Son = "Sonnoumon",
+          Gan = "Gando"
+        )
+      ),
+    aes(x = Age.group, y = Recognize),
+    width = 0.1
+  ) +
+  scale_shape_manual(values = c(F = 1, M = 2)) +
+  xlab("Age group") +
+  ylab("Number of species recognized") +
+  guides(
+    fill = guide_legend(
+      direction = "horizontal",
+      label.position = "bottom",
+      title.position = "top"
+    ),
+    color = guide_legend(
+      direction = "horizontal",
+      label.position = "bottom",
+      title.position = "top"
+    ),
+    shape = guide_legend(
+      direction = "horizontal",
+      label.position = "bottom",
+      title.position = "top"
+    ),
+    linetype = guide_legend(
+      direction = "horizontal",
+      label.position = "bottom",
+      title.position = "top"
+    )
+  ) +
+  theme(
+    panel.grid.major.y = element_line(color = "gray70"),
+    axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1)
+    )
+
+lemon::reposition_legend(kn.plot, position = "center", panel = "panel-2-4")
+```
+
+\FloatBarrier
+
+---
+
+# "Community" composition analysis
+
+This analysis focuses on which particular species are recognized by different respondents, or the preference ratings given to each species by different respondents, but not the total number of species recognized.
+The analogy in community ecology is community composition.
+
+## Load data
+
+Load knowledge and preference matrices, as well as associated biographical data.
+
+```{r matrix-load}
+knowledge.matrix <- readRDS(here::here("output", "knowledge_matrix.rds"))
+knowledge.biodata <- readRDS(here::here("output", "knowledge_biodata.rds"))
+preference.matrix <- readRDS(here::here("output", "preference_matrix.rds"))
+preference.biodata <- readRDS(here::here("output", "preference_biodata.rds"))
+```
+
+## Knowledge CCA
+
+This analysis focuses on differences in which species are known by different interviewees.
+The knowledge matrix has respondents along the rows, and mushroom species along the columns.
+The values are 1 is the respondent recognized that mushroom species, and 0 if they did not.
+
+Do constrained correspondence analysis (CCA) on the knowledge matrix, constrained by the biographical data.
+
+```{r k-cca}
+set.seed(2184761)
+k.cca <- vegan::cca(
+  formula = knowledge.matrix ~ Age.group + (Ethnic.group + Gender + Village)^2,
+  data = knowledge.biodata
+)
+k.cca <- vegan::ordistep(
+  k.cca,
+  scope = knowledge.matrix ~ 1,
+  direction = "backward",
+  trace = TRUE,
+  permutations = how(nperm = 999)
+)
+```
+
+The selected model is `r k.cca$terms %>% formula %>% format`
+(R^2^ = `r vegan::RsquareAdj(k.cca)$r.square %>% format(digits = 3)`;
+R^2^_adj_ = `r vegan::RsquareAdj(k.cca)$adj.r.square %>% format(digits = 3)`)
+
+Find a way to orient the CCA so that the Gando ethnic group is positive on all axes.
+Because the direction of each axis is arbitrary in CCA, this does not effect the interpretation of results.
+However, it ensures some consistency between different methods used during analysis or review.
+The choice of Gando was arbitrary, based on early results.
+
+```{r k-orient}
+k.cca.orient <- diag(sign(k.cca$CCA$biplot["Ethnic.groupGan",])) %>%
+  magrittr::set_rownames(colnames(k.cca$CCA$biplot)) %>%
+  magrittr::set_colnames(colnames(k.cca$CCA$biplot))
+```
+
+---
+
+Do per-axis ANOVA (Table \@ref(tab:k-cca-anova-axis)).
+This tests each axis sequentially.
+
+(ref:k-cca-anova-axis) **ANOVA table for CCA axes of knowledge CCA.**
+
+```{r k-cca-anova-axis, render =lemon::lemon_print, caption="(ref:k-cca-anova-axis)", kable.opts=list(caption.short="ANOVA table for CCA axes of knowledge CCA.", booktabs=TRUE), cache=TRUE, cca=k.cca}
+set.seed(2184761)
+k.anova <- anova(k.cca, by = "axis", permutations = 9999, cutoff = 0.05) %>%
+  broom::tidy()
+k.anova
+```
+
+\FloatBarrier
+
+---
+
+Choose axes which were significant at $p \le 0.05$.
+
+```{r k-cca-choices}
+k.choices <- which(k.anova$p.value <= 0.05)
+k.cca.orient <- k.cca.orient[k.choices, k.choices]
+```
+
+---
+
+Do marginal per-term ANOVA (Table \@ref(tab:k-cca-anova-terms)).
+This tests the full model vs. the model with each individual term removed.
+
+(ref:k-cca-anova-terms) **ANOVA table for explanatory terms in knowledge CCA.**
+
+```{r k-cca-anova-terms, render =lemon::lemon_print, cache=TRUE, cca=k.cca, caption="(ref:k-cca-anova-terms)", kable.opts=list(caption.short="ANOVA table for explanatory terms in knowledge CCA.", booktabs=TRUE)}
+set.seed(2184761)
+anova(k.cca, by = "margin", permutations = 9999) %>%
+  broom::tidy()
+```
+
+\FloatBarrier
+
+---
+
+Display the projections of the predictors on the significant axes, after reflection to "standard" orientation with Gando ethnicity positive (Table \@ref(tab:k-cca-predictor-table)).
+
+(ref:k-cca-predictor-table) **Centroids of predictor values for knowledge CCA.**
+
+```{r k-cca-predictor-table, render=lemon::lemon_print, caption="(ref:k-cca-predictor-table)", kable.opts=list(caption.short="Centroids of predictor values for knowledge CCA", booktabs=TRUE)}
+scores(
+  k.cca,
+  display = "cn",
+  choices = k.choices
+) %>% 
+  magrittr::multiply_by_matrix(k.cca.orient) %>%
+  tibble::as_tibble(rownames = "Category")
+```
+
+\FloatBarrier
+
+---
+
+Make various calculations that will help in plotting the CCA.
+
+```{r k-cca-setup}
+# coordinates for each interviewee ("site") and each species.
+k.scores <- vegan::scores(
+  k.cca,
+  display = c("sites", "species"),
+  scaling = "symmetric",
+  choices = k.choices
+)
+# reflect into standard orientation
+k.scores$sites <- k.scores$sites %*% k.cca.orient
+k.scores$species <- k.scores$species %*% k.cca.orient
+
+# scores for interviewees ("sites")
+k.people <- k.scores$sites %>%
+  tibble::as_tibble(rownames = "ID") %>%
+  dplyr::left_join(knowledge.biodata, by = "ID")
+
+# calculate species scores
+k.species <- k.scores$species %>%
+  tibble::as_tibble(rownames = "sp") %>%
+  dplyr::mutate(
+    length12 = sqrt(CCA1*CCA1 + CCA2*CCA2),
+    length13 = sqrt(CCA1*CCA1 + CCA3*CCA3),
+    length23 = sqrt(CCA2*CCA2 + CCA3*CCA3)
+  )
+
+# Choose the top 10 most extreme species in each axis combination.
+k.species12 <- k.species %>%
+  dplyr::arrange(dplyr::desc(length12)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+k.species13 <- k.species %>%
+  dplyr::arrange(dplyr::desc(length13)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+k.species23 <- k.species %>%
+  dplyr::arrange(dplyr::desc(length23)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+# Species abbreviation text to include in captions
+k.species12.abbrev <- 
+  dplyr::filter(k.species12, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+
+k.species13.abbrev <- 
+  dplyr::filter(k.species13, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+
+k.species23.abbrev <- 
+  dplyr::filter(k.species23, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+
+# background points for each facet in the sidebar plots
+k.bg <- k.people %>%
+  dplyr::select(dplyr::starts_with("CCA"), Ethnic.group) %>%
+  dplyr::mutate(EG = TRUE) %>%
+  tidyr::spread(Ethnic.group, EG, fill = FALSE) %>%
+  dplyr::mutate_at(c("Bar", "Gan", "Lok", "Yom"), `!`) %>%
+  tidyr::gather(Ethnic.group, EG, Bar:Yom) %>%
+  dplyr::filter(EG)
+
+k.bg.vill <- k.people %>%
+  dplyr::select(dplyr::starts_with("CCA"), Village) %>%
+  dplyr::mutate(V = TRUE) %>%
+  tidyr::spread(Village, V, fill = FALSE) %>%
+  dplyr::mutate_at(c("Ang", "Bio", "Gan", "Fab", "Son"), `!`) %>%
+  tidyr::gather(Village, V,Ang:Son) %>%
+  dplyr::filter(V)
+```
+
+Create a biplot for the first two CCA axes, with a sidebar to more easily read ethnic group/village combinations (Fig \@ref(fig:Fig3)).
+
+(ref:fig3cap) **Biplot of CCA axes 1 and 2 for species known.** (Fig 3 in main text.) Individual respondents are shown as colored shapes, while mushroom species empty circles colored shapes. Only the ten mushroom species with the strongest axis associations are labeled. Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Gan = Gando, Son = Sonnoumon. Ethnic group abbreviations: Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. Species abbreviations: `r k.species12.abbrev`. Side plots: respondents for each ethnic group are plotted separately, with point shape and color representing village.
+
+```{r Fig3, out.width = "100%", fig.width = 5.2, fig.height = 4.5, fig.cap="(ref:fig3cap)", fig.scap="Biplot of CCA axes 1 and 2 for species known. (Fig 3 in main text.)", fig.align='center'}
+cca12 <-
+  k.people %>%
+  ggplot(aes(
+    x = CCA1,
+    y = CCA2,
+    color = VillageGroup,
+    shape = VillageGroup,
+    fill = VillageGroup
+    )) +
+  # light axes
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  # points for "sites" (i.e. interviewees)
+  geom_point(stroke = 1.5, alpha = 0.8) +
+  # points for species
+  geom_point(
+    aes(x = CCA1, y = CCA2),
+    data = k.species12,
+    inherit.aes = FALSE,
+    shape = 1
+  ) +
+  # labels for the species
+  ggrepel::geom_text_repel(
+    aes(CCA1, CCA2, label = sp),
+    data = dplyr::bind_rows(
+      k.species12,
+      dplyr::mutate(k.people, sp = "")
+    ),
+    size = 3,
+    inherit.aes = FALSE,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    segment.alpha = 0.2,
+    min.segment.length = 0
+  ) +
+  theme_cca_main +
+  scale_villagegroup
+
+cca12_side <- k.people %>%
+  ggplot(aes(CCA1, CCA2, shape = Village, color = Village)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_point(aes(CCA1, CCA2), color = "gray50", shape = ".", data = k.bg, inherit.aes = FALSE) +
+  geom_point() +
+  theme_cca_side +
+  scale_village
+
+ggpubr::ggarrange(cca12, cca12_side, widths = c(2.05, 1.06))
+```
+
+\FloatBarrier
+
+---
+
+Create a biplot for CCA axes 1 and 3 (Fig \@ref(fig:Fig3alt)).
+These are the ones which show the Gender x Village interaction most clearly, so the sidebar is for Gender/Village combinations.
+
+(ref:fig4cap) **Biplot of CCA axes 1 and 3 for species known.** (Fig 4 in main text.) Individual respondents are shown as colored shapes, while mushroom species empty circles colored shapes. Only the ten mushroom species with the strongest axis associations are labeled. Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Gan = Gando, Son = Sonnoumon. Ethnic group abbreviations: Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. Species abbreviations: `r k.species13.abbrev`. Side plots: respondents for each ethnic group are plotted separately, with point shape and color representing gender.
+
+```{r Fig4, fig.width = 5.2, fig.height = 4.5, fig.cap="(ref:fig4cap)", fig.scap="Biplot of CCA axes 1 and 3 for species known. (Fig 4 in main text).", fig.align='center'}
+cca13 <-
+  k.people %>%
+  ggplot(aes(
+    x = CCA1,
+    y = CCA3,
+    color = VillageGroup,
+    shape = VillageGroup,
+    fill = VillageGroup
+  )) +
+  # light axes
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  # points for "sites" (i.e. interviewees)
+  geom_point(stroke = 1.5, alpha = 0.8) +
+  # points for species
+  geom_point(
+    aes(x = CCA1, y = CCA3),
+    data = k.species13,
+    inherit.aes = FALSE,
+    shape = 1
+  ) +
+  # labels for the species
+  ggrepel::geom_text_repel(
+    aes(CCA1, CCA3, label = sp),
+    data = dplyr::bind_rows(
+      k.species13,
+      dplyr::mutate(k.people, sp = "")
+    ),
+    size = 3,
+    inherit.aes = FALSE,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    segment.alpha = 0.2,
+    min.segment.length = 0
+  ) +
+  theme_cca_main +
+  scale_villagegroup
+
+cca13_side <- k.people %>%
+  ggplot(aes(CCA1, CCA3, shape = Gender, color = Gender)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_point(aes(CCA1, CCA3), color = "gray50", shape = ".",
+             data = k.bg.vill, inherit.aes = FALSE) +
+  geom_point() +
+  scale_shape_manual(values = c("F" = 1, "M" = 2)) +
+  scale_color_manual(values = c("F" = "red", "M" = "blue")) +
+  coord_fixed() +
+  scale_x_continuous(label = NULL, name = NULL,
+                     sec.axis = dup_axis(name = NULL, labels = NULL)) +
+  scale_y_continuous(label = NULL, name = NULL,
+                     sec.axis = dup_axis(name = NULL, labels = NULL)) +
+  lemon::facet_rep_wrap(~Village, ncol = 1, strip.position = "right") +
+  theme(
+    strip.placement = "outside",
+    legend.box.spacing = unit(5, "pt"),
+    legend.box.margin = margin(3, 3, 3, 3),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 9),
+    legend.key.size = unit(3, "mm"),
+    plot.margin = margin(0, 0, 0, 5),
+    panel.grid = element_blank()
+  )
+
+ggpubr::ggarrange(cca13, cca13_side, nrow = 1, widths = c(2.05, 0.94))
+```
+
+\FloatBarrier
+
+---
+
+Make a plot of CCA axes 2 and 3 (Fig \@ref(fig:Fig4)).
+These axes show the variation between the Lokpa and Yom in Angaradebou and Bio Sika most clearly, so the sidebar is again Ethnic group/Village.
+
+(ref:fig-k-cca-23-cap) **Biplot of CCA axes 2 and 3 for species known.** (Fig 4 in main text.) Individual respondents are shown as colored shapes, while mushroom species empty circles colored shapes. Only the ten mushroom species with the strongest axis associations are labeled. Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Gan = Gando, Son = Sonnoumon. Ethnic group abbreviations: Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. Species abbreviations: `r k.species23.abbrev`. Side plots: respondents for each ethnic group are plotted seperately, with point shape and color representing gender.
+
+```{r fig-k-cca-23, out.width = "100%", fig.width = 5.2, fig.height = 4.5, fig.cap="(ref:fig-k-cca-23-cap)", fig.scap="Biplot of CCA axes 2 and 3 for species known.", fig.align='center'}
+cca23 <-
+  k.people %>%
+  ggplot(aes(
+    x = CCA2,
+    y = CCA3,
+    color = VillageGroup,
+    shape = VillageGroup,
+    fill = VillageGroup
+  )) +
+  # light axes
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  # points for "sites" (i.e. interviewees)
+  geom_point(stroke = 1.5, alpha = 0.8) +
+  # points for species
+  geom_point(
+    aes(x = CCA2, y = CCA3),
+    data = k.species23,
+    inherit.aes = FALSE,
+    shape = 1
+  ) +
+  # labels for the species
+  ggrepel::geom_text_repel(
+    aes(CCA2, CCA3, label = sp),
+    data = dplyr::bind_rows(
+      k.species23,
+      dplyr::mutate(k.people, sp = "")
+    ),
+    size = 3,
+    inherit.aes = FALSE,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    segment.alpha = 0.2,
+    min.segment.length = 0
+  ) +
+  theme_cca_main +
+  scale_villagegroup
+
+cca23_side <- k.people %>%
+  ggplot(aes(CCA2, CCA3, shape = Village, color = Village)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_point(aes(CCA2, CCA3), color = "gray50", shape = ".", data = k.bg, inherit.aes = FALSE) +
+  geom_point() +
+  theme_cca_side +
+  scale_village
+
+ggpubr::ggarrange(cca23, cca23_side, widths = c(2.05, 1.072))
+```
+
+\FloatBarrier
+
+---
+
+## Preference CCA
+
+This analysis focuses on differences in the preference ratings given to different species by different interviewees.
+The preference matrix has respondents along the rows, and mushroom species along the columns.
+The values are the preference given by that respondent for that mushroom on a scale of 0-4.
+Mushrooms which were not recognized are also given a score of 0 (inedible).
+
+Do constrained correspondence analysis (CCA) for the preference matrix, constrained by the biographical data, including interactions.
+Then remove variables or interactions which are given a p-value > 0.10 by a permutation test.
+
+```{r p-cca}
+set.seed(32195761)
+p.cca <- vegan::cca(
+  formula = preference.matrix ~  Age.group + (Ethnic.group + Gender + Village)^2,
+  data = preference.biodata
+)
+p.cca <- vegan::ordistep(
+  p.cca,
+  scope = preference.matrix ~ 1,
+  direction = "backward",
+  trace = TRUE,
+  permutations = how(nperm = 999)
+)
+```
+
+The selected model is `r p.cca$terms %>% formula %>% format`
+(R^2^ = `r vegan::RsquareAdj(p.cca)$r.square %>% format(digits = 3)`;
+R^2^_adj_ = `r vegan::RsquareAdj(p.cca)$adj.r.square %>% format(digits = 3)`)
+
+Find a way to orient the CCA so that the Gando ethnic group is positive on all axes.
+Because the direction of each axis is arbitrary in CCA, this does not effect the interpretation of results.
+However, it ensures some consistency between different methods used during analysis or review.
+The choice of Gando was arbitrary, based on early results.
+
+```{r p-orient}
+p.cca.orient <- diag(sign(p.cca$CCA$biplot["Ethnic.groupGan",])) %>%
+  magrittr::set_rownames(colnames(p.cca$CCA$biplot)) %>%
+  magrittr::set_colnames(colnames(p.cca$CCA$biplot))
+```
+
+---
+
+Do per-axis ANOVA (Table \@ref(tab:p-cca-axis)).
+This tests each axis sequentially.
+
+(ref:p-cca-axis) **ANOVA table for CCA axes of preference CCA.**
+
+```{r p-cca-axis, render =lemon::lemon_print, cache=TRUE, cca=p.cca, caption="(ref:p-cca-axis)", kable.opts=list(caption.short="ANOVA table for CCA axes of preference CCA.", booktabs=TRUE)}
+set.seed(32195761)
+p.anova <- anova(p.cca, by = "axis", permutations = 9999, cutoff = 0.05) %>%
+  broom::tidy()
+p.anova
+```
+
+\FloatBarrier
+
+---
+
+Choose axes which were significant at $p \le 0.05$.
+
+```{r p-cca-choices}
+p.choices <- which(p.anova$p.value <= 0.05)
+p.cca.orient <- p.cca.orient[p.choices, p.choices]
+```
+
+---
+
+Do marginal per-term ANOVA (Table \@ref(tab:p-cca-term)).
+This tests the full model vs. the model with each individual term removed.
+
+(ref:p-cca-term) **ANOVA table for explanatory variables in preference CCA.**
+
+```{r p-cca-term, render =lemon::lemon_print, cache=TRUE, cca=k.cca, caption="(ref:p-cca-term)", kable.opts=list(caption.short="ANOVA table for explanatory variables in preference CCA.", booktabs=TRUE)}
+set.seed(32195761)
+anova(p.cca, by = "margin", permutations = 9999) %>%
+  broom::tidy()
+```
+
+\FloatBarrier
+
+---
+
+Display the projections of the predictors on the significant axes, after reflection to "standard" orientation with Gando ethnicity positive (Table \@ref(tab:p-cca-predictor-table)).
+
+(ref:p-cca-predictor-table) **Centroids of predictor values for preference CCA.**
+
+```{r p-cca-predictor-table, render=lemon::lemon_print, caption="(ref:p-cca-predictor-table)", kable.opts=list(caption.short="Centroids of predictor values for preference CCA", booktabs=TRUE)}
+scores(
+  p.cca,
+  display = "cn",
+  choices = p.choices
+) %>% 
+  magrittr::multiply_by_matrix(p.cca.orient) %>%
+  tibble::as_tibble(rownames = "Category")
+```
+
+\FloatBarrier
+
+---
+
+Set up some additional variables for plotting the preference CCA.
+
+```{r p-cca-setup}
+# coordinates for each interviewee ("site") and each species.
+p.scores <- vegan::scores(
+  p.cca,
+  display = c("sites", "species"),
+  scaling = "symmetric",
+  choices = p.choices
+)
+# reflect into standard orientation
+p.scores$sites <- p.scores$sites %*% p.cca.orient
+p.scores$species <- p.scores$species %*% p.cca.orient
+
+# scores for interviewees ("sites")
+p.people <- p.scores$sites %>%
+  tibble::as_tibble(rownames = "ID") %>%
+  dplyr::left_join(preference.biodata, by = "ID")
+
+# calculate species scores
+p.species <- p.scores$species %>%
+  tibble::as_tibble(rownames = "sp") %>%
+  dplyr::mutate(
+    length12 = sqrt(CCA1*CCA1 + CCA2*CCA2),
+    length13 = sqrt(CCA3*CCA3 + CCA1*CCA1),
+    length34 = sqrt(CCA3*CCA3 + CCA4*CCA4)
+  )
+
+# Choose the top 10 most extreme species in each axis combination.
+p.species12 <- p.species %>%
+  dplyr::arrange(dplyr::desc(length12)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+p.species13 <- p.species %>%
+  dplyr::arrange(dplyr::desc(length13)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+p.species34 <- p.species %>%
+  dplyr::arrange(dplyr::desc(length34)) %>%
+  dplyr::mutate(sp = ifelse(dplyr::cur_group_rows() <= 10, sp, ""))
+
+# Species abbreviation text to include in captions
+p.species12.abbrev <- 
+  dplyr::filter(k.species12, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+
+p.species13.abbrev <- 
+  dplyr::filter(p.species13, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+
+p.species34.abbrev <- 
+  dplyr::filter(p.species34, sp != "") %>%
+  dplyr::arrange(sp) %>%
+  dplyr::left_join(abbrevkey, by = c("sp" = "Abbrev")) %>%
+  glue::glue_data("{sp} = {canonicalName}") %>%
+  glue::glue_collapse(", ")
+```
+
+---
+
+Show biplot for the first two axes, with sidebar for Ethnic group/Village combinations (Fig \@ref(fig:S8-Figure)).
+
+(ref:s8cap) **Biplot of CCA axes 1 and 2 for species preferences.** Individual respondents are shown as colored shapes, while mushroom species empty circles colored shapes. Only the ten mushroom species with the strongest axis associations are labeled. Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Gan = Gando, Son = Sonnoumon. Ethnic group abbreviations: Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom. Species abbreviations: `r p.species12.abbrev`. Side plots: respondents for each ethnic group are plotted seperately, with point shape and color representing village.
+
+```{r S8-Figure, out.width = "100%", fig.width = 5.2, fig.height = 4.5, fig.cap="(ref:s8cap)", fig.scap="Biplot of CCA axes 1 and 2 for species preferences.", fig.align='center'}
+p.cca12 <-
+  p.people %>%
+  ggplot(aes(
+    x = CCA1,
+    y = CCA2,
+    color = VillageGroup,
+    shape = VillageGroup,
+    fill = VillageGroup
+  )) +
+  # light axes
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  # points for "sites" (i.e. interviewees)
+  geom_point(stroke = 1.5, alpha = 0.8) +
+  # points for species
+  geom_point(
+    aes(x = CCA1, y = CCA2),
+    data = p.species12,
+    inherit.aes = FALSE,
+    shape = 1
+  ) +
+  # labels for the species
+  ggrepel::geom_text_repel(
+    aes(CCA1, CCA2, label = sp),
+    data = dplyr::bind_rows(
+      p.species12,
+      dplyr::mutate(p.people, sp = "")
+    ),
+    size = 3,
+    inherit.aes = FALSE,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    segment.alpha = 0.2,
+    min.segment.length = 0
+  ) +
+  theme_cca_main +
+  scale_villagegroup
+
+p.bg <- p.people %>%
+  dplyr::select(dplyr::starts_with("CCA"), Ethnic.group) %>%
+  dplyr::mutate(EG = TRUE) %>%
+  tidyr::spread(Ethnic.group, EG, fill = FALSE) %>%
+  dplyr::mutate_at(c("Bar", "Gan", "Lok", "Yom"), `!`) %>%
+  tidyr::gather(Ethnic.group, EG, Bar:Yom) %>%
+  dplyr::filter(EG)
+
+p.cca12_side <- p.people %>%
+  ggplot(aes(CCA1, CCA2, shape = Village, color = Village)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_point(aes(CCA1, CCA2), color = "gray50", shape = ".",
+             data = p.bg, inherit.aes = FALSE) +
+  geom_point() +
+  theme_cca_side +
+  scale_village
+
+ggpubr::ggarrange(p.cca12, p.cca12_side, widths = c(2.05, 1.13))
+```
+
+\FloatBarrier
+
+---
+
+Show the biplot for CCA axes 3 and 4, again with Ethnic Group/Village sidebar (Fig \@ref(fig:S9-Figure)).
+
+(ref:s9cap) **Biplot of CCA axes 3 and 4 for species preferences.**
+Individual respondents are shown as colored shapes, while mushroom species empty circles colored shapes.
+Only the ten mushroom species with the strongest axis associations are labeled.
+Village abbreviations: Ang = Angaradebou, Bio = Bio Sika, Fab = Faba, Gan = Gando, Son = Sonnoumon.
+Ethnic group abbreviations: Bar = Bariba, Gan = Gando, Lok = Lokpa, Yom = Yom.
+Species abbreviations: `r p.species34.abbrev`.
+Side plots: respondents for each ethnic group are plotted seperately, with point shape and color representing village.
+
+```{r S9-Figure, out.width = "100%", fig.width = 5.2, fig.height = 4.5, fig.cap="(ref:s9cap)", fig.scap="Biplot of CCA axes 3 and 4 for species preferences.", fig.align='center'}
+p.cca34 <-
+  p.people %>%
+  ggplot(aes(
+    x = CCA3,
+    y = CCA4,
+    color = VillageGroup,
+    shape = VillageGroup,
+    fill = VillageGroup
+  )) +
+  # light axes
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  # points for "sites" (i.e. interviewees)
+  geom_point(stroke = 1.5, alpha = 0.8) +
+  # points for species
+  geom_point(
+    aes(x = CCA3, y = CCA4),
+    data = p.species34,
+    inherit.aes = FALSE,
+    shape = 1
+  ) +
+  # labels for the species
+  ggrepel::geom_text_repel(
+    aes(CCA3, CCA4, label = sp),
+    data = dplyr::bind_rows(
+      p.species34,
+      dplyr::mutate(p.people, sp = "")
+    ),
+    size = 3,
+    inherit.aes = FALSE,
+    box.padding = 0.5,
+    point.padding = 0.2,
+    segment.alpha = 0.2,
+    min.segment.length = 0
+  ) +
+  theme_cca_main +
+  scale_villagegroup
+
+p.cca34_side <- p.people %>%
+  ggplot(aes(CCA3, CCA4, shape = Village, color = Village)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_vline(xintercept = 0, color = "grey80") +
+  geom_point(aes(CCA3, CCA4), color = "gray50", shape = ".", data = p.bg, inherit.aes = FALSE) +
+  geom_point() +
+  theme_cca_side +
+  scale_village
+
+ggpubr::ggarrange(p.cca34, p.cca34_side, widths = c(2.06, 1))
+```
+
+\FloatBarrier
+
+---
+
+# Knowledge exchange within villages
+
+The Lokpa and Yom ethnic groups both inhabit the villages of Angaradebou and Bio Sika.
+The Yom make up the demographic majority in Angaradebou, and the Lokpa make up the demographic majority in Bio Sika.
+
+Here we compare the differences in the profile of species known between pairs of interviewees who belong to:
+
+1. The same village and same ethnic group (AngLok / AngLok; AngYom / AngYom; BioLok / BioLok; BioYom / BioYom)
+2. The same village but different ethnic groups (AngLok / AngYom; BioLok / BioYom)
+3. Different villages but the same ethnic group (AngLok / BioLok; AngYom / BioYom)
+4. Different villages and ethnic groups, each the minority in their respective village (AngLok / BioYom)
+5. Different villages and ethnic groups, each the majority in their respective village (AngYom / BioLok)
+
+---
+
+Put together the data and do a Kruskal-Wallis test.
+
+```{r k_lokyom_kruskal}
+k_lokyom_pairwise <- k.people %>%
+  # choose only Lokpa and Yom,
+  # because these are the groups that inhabit the same villages.
+  dplyr::filter(Ethnic.group %in% c("Lok", "Yom")) %>%
+  dplyr::select(VillageGroup, Ethnic.group, Village, CCA1:CCA3) %>%
+  # Yom are the majority in Anagaradebou, Lokpa are the majority in Bio Sika
+  dplyr::mutate(
+    ID = seq_len(nrow(.)),
+    prevalence = dplyr::case_when(
+      Village == "Ang" & Ethnic.group == "Yom" ~ "Majority",
+      Village == "Bio" & Ethnic.group == "Lok" ~ "Majority",
+      TRUE ~ "Minority"
+    )
+  ) %>%
+  # make all unique pairs
+  tidyr::crossing(A = ., B = .) %>%
+  tidyr::unpack(c(A, B), names_sep = "_") %>%
+  dplyr::filter(A_ID > B_ID) %>%
+  dplyr::mutate(
+    # calculate pairwise distances
+    dist = sqrt(
+      (A_CCA1 - B_CCA1)^2 +
+        (A_CCA2 - B_CCA2)^2 +
+        (A_CCA3 - B_CCA3)^2
+    ),
+    # categorize comparisons
+    type = dplyr::case_when(
+      A_Village == B_Village & A_Ethnic.group == B_Ethnic.group ~
+        "Same",
+      A_Village == B_Village & A_Ethnic.group != B_Ethnic.group ~
+        "Diff Ethn",
+      A_Village != B_Village & A_Ethnic.group == B_Ethnic.group ~
+        "Diff Vill",
+      TRUE ~ A_prevalence
+    ),
+    type = factor(
+      type,
+      c("Same", "Diff Vill", "Diff Ethn", "Minority", "Majority")
+    )
+  )
+
+k_lokyom_kruskal <- k_lokyom_pairwise %$%
+  agricolae::kruskal(y = dist, trt = type, p.adj = "holm")
+
+k_lokyom_kruskal$statistics
+```
+
+Plot the distribution of parwise distanced within each category, along with the K-W test results (Fig \@ref(fig:lokyom-pairwise-k)).
+
+(ref:lokyom-k) **Pairwise knowledge CCA differences between Lokpa and Yom respondents in Angaradebou and Bio Sika villages.**
+(Fig 5 in main text.)
+Distance represents dissimilarity in the profile of which mushroom species are known, not necessarily a difference in the absolute number of species known.
+Categories are
+*Same*: interviewees belonging to the same ethnic group, living in the same village;
+*Diff Ethn*: interviewees belonging to different ethnic groups, but living in the same village;
+*Diff Vill*: interviewees belonging to the same ethnic group, but living in different villages;
+*Minority*: interviewees belonging to different ethnic groups and living in different villages, each in the minority ethnic group in their respective village;
+*Majority*: interviewees belonging to different ethnic groups and living in different villages, each in the majority ethnic group in their respective village.
+
+```{r Fig5, fig.width=3.5, fig.height=3, fig.cap="(ref:lokyom-k)", fig.scap="Pairwise knowledge CCA differences between Lokpa and Yom respondents in Angaradebou and Bio Sika villages. (Fig 5 in main text.)", fig.align="center"}
+k_lokyom_groups <- 
+  dplyr::left_join(
+    # kruskal-wallis groupings
+    k_lokyom_kruskal$groups %>%
+      tibble::rownames_to_column("type") %>%
+      dplyr::select(-dist),
+    # max value for each group (for plotting)
+    dplyr::select(k_lokyom_pairwise, type, dist) %>%
+      dplyr::group_by(type) %>%
+      dplyr::summarize_all(max),
+    by = "type"
+  )
+ggplot(k_lokyom_pairwise, aes(x = type, y = dist)) +
+  geom_boxplot() +
+  geom_text(
+    aes(x = type, y = dist, label = groups),
+    data = k_lokyom_groups,
+    inherit.aes = FALSE,
+    nudge_y = 0.2
+  ) +
+  xlab(NULL) +
+  ylab("CCA distance")
+```
+
+\FloatBarrier
+
+---
+
+Now we repeat the same analysis, based on preferences rather than the set of species known.
+
+```{r p_lokyom_kruskal}
+p_lokyom_pairwise <- p.people %>%
+  # choose only Lokpa and Yom,
+  # because these are the groups that inhabit the same villages.
+  dplyr::filter(Ethnic.group %in% c("Lok", "Yom")) %>%
+  dplyr::select(VillageGroup, Ethnic.group, Village, CCA1:CCA4) %>%
+  # Yom are the majority in Anagaradebou, Lokpa are the majority in Bio Sika
+  dplyr::mutate(
+    ID = seq_len(nrow(.)),
+    prevalence = dplyr::case_when(
+      Village == "Ang" & Ethnic.group == "Yom" ~ "Majority",
+      Village == "Bio" & Ethnic.group == "Lok" ~ "Majority",
+      TRUE ~ "Minority"
+    )
+  ) %>%
+  # make all unique pairs
+  tidyr::crossing(A = ., B = .) %>%
+  tidyr::unpack(c(A, B), names_sep = "_") %>%
+  dplyr::filter(A_ID > B_ID) %>%
+  dplyr::mutate(
+    # calculate pairwise distances
+    dist = sqrt(
+      (A_CCA1 - B_CCA1)^2 +
+        (A_CCA2 - B_CCA2)^2 +
+        (A_CCA3 - B_CCA3)^2 +
+        (A_CCA4 - B_CCA4)^2
+    ),
+    # categorize comparisons
+    type = dplyr::case_when(
+      A_Village == B_Village & A_Ethnic.group == B_Ethnic.group ~
+        "Same",
+      A_Village == B_Village & A_Ethnic.group != B_Ethnic.group ~
+        "Diff Ethn",
+      A_Village != B_Village & A_Ethnic.group == B_Ethnic.group ~
+        "Diff Vill",
+      TRUE ~ A_prevalence
+    ),
+    type = factor(
+      type,
+      c("Same", "Diff Vill", "Diff Ethn", "Minority", "Majority")
+    )
+  )
+
+p_lokyom_kruskal <- p_lokyom_pairwise %$%
+  agricolae::kruskal(y = dist, trt = type, p.adj = "holm")
+
+p_lokyom_kruskal$statistics
+```
+
+Plot the dissimilarities and K-W results (Fig \@ref(fig:lokyom-pairwise-p)).
+
+(ref:lokyom-p) **Pairwise CCA differences between Lokpa and Yom respondents in Angaradebou and Bio Sika villages.**
+Distance represents dissimilarity in the preference for different mushroom species.
+Categories are
+*Same*: interviewees belonging to the same ethnic group, living in the same village;
+*Diff Ethn*: interviewees belonging to different ethnic groups, but living in the same village;
+*Diff Vill*: interviewees belonging to the same ethnic group, but living in different villages;
+*Minority*: interviewees belonging to different ethnic groups and living in different villages, each in the minority ethnic group in their respective village;
+*Majority*: interviewees belonging to different ethnic groups and living in different villages, each in the majority ethnic group in their respective village.
+
+```{r lokyom-pairwise-p, fig.width=3.5, fig.height=3, fig.cap="(ref:lokyom-p)", fig.scap="Pairwise preference CCA differences between Lokpa and Yom respondents in Angaradebou and Bio Sika villages.", fig.align="center"}
+p_lokyom_groups <-
+  dplyr::left_join(
+    # kruskal-wallis groupings
+    p_lokyom_kruskal$groups %>%
+      tibble::rownames_to_column("type") %>%
+      dplyr::select(-dist),
+    # max value for each group (for plotting)
+    dplyr::select(p_lokyom_pairwise, type, dist) %>%
+      dplyr::group_by(type) %>%
+      dplyr::summarize_all(max),
+    by = "type"
+  )
+ggplot(p_lokyom_pairwise, aes(x = type, y = dist)) +
+  geom_boxplot() +
+  geom_text(
+    aes(x = type, y = dist, label = groups),
+    data = p_lokyom_groups,
+    inherit.aes = FALSE,
+    nudge_y = 0.2
+  ) +
+  xlab(NULL) +
+  ylab("CCA distance")
+```
+
+\FloatBarrier
+
+---
+
+# Edible species
+
+Make a list of species commonly regarded as edible, and information about the preference values each was given (Table \@ref(tab:edible)).
+
+(ref:edible) **Species regarded as edible.**
+Includes all species with at least 5 appraisals, median preference value >=2, and regarded as toxic by <2 interviewees.
+*n*: number of preference appraisals;
+*min*: minimum preference value;
+*q25*: first quartile preference appraisal;
+*mean*: mean preference appraisal;
+*median*: median preference appraisal;
+*q75*: third quartile preference appraisal;
+*max*: max preference appraisal.
+
+```{r edible, render=lemon::lemon_print, caption="(ref:edible)", kable.opts=list(caption.short="Species regarded as edible.", booktabs=TRUE)}
+interviews %>%
+  dplyr::group_by(scientificName) %>%
+  dplyr::filter(!is.na(Preference)) %>%
+  dplyr::summarize(
+    n = dplyr::n(),
+    min = min(Preference),
+    q25 = quantile(Preference, 0.25),
+    mean = mean(Preference),
+    median = median(Preference),
+    q75 = quantile(Preference, 0.75),
+    max = max(Preference),
+    toxic = sum(stringr::str_detect(Remarks, "[Tt]oxic"), na.rm = TRUE)
+  ) %>%
+  dplyr::filter(n >= 5, median >= 2, toxic < 2) %>%
+  dplyr::select(Species = scientificName, n, min, q25, mean, median, q75, max) %>%
+  dplyr::arrange(dplyr::desc(mean))
+```
+
+\FloatBarrier
+
+---
+
+# Package versions {-}
+
+Show version numbers of R and key packages that were used.
+
+`R`: 
+
+```{r R}
+R.version.string
+citation("base")
+```
+
+`vegan`:
+
+```{r vegan}
+packageVersion("vegan")
+citation("vegan")
+```
+
+`emmeans`:
+
+```{r emmeans}
+packageVersion("emmeans")
+citation("emmeans")
+```
+
+`car`:
+
+```{r car}
+packageVersion("car")
+citation("car")
+```
+
+`agricolae`:
+
+```{r agricolae}
+packageVersion("agricolae")
+citation("agricolae")
+```
+
+
+`ggplot2`:
+
+```{r ggplot2}
+packageVersion("ggplot2")
+citation("ggplot2")
+```

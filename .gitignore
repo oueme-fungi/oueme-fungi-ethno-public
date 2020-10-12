@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.xlsx#
+*.csv#
+*.html
+*.pdf
+*.docx*
+packrat/lib*/
+nohup.out
+*.tex
+*_files
+output
+*_cache
